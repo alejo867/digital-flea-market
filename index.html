@@ -1,546 +1,312 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"/>
-  <title>Digital Flea Market (Indoor Hall)</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta charset="utf-8" />
+  <title>Digital Flea Market</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <style>
-    :root{
-      --pad:12px; --gap:10px; --radius:14px;
-      --bg:rgba(255,255,255,0.88);
-      --shadow:0 10px 30px rgba(0,0,0,0.18);
-      --font:system-ui,-apple-system,Segoe UI,Roboto,Arial;
-    }
-    html,body{ margin:0; height:100%; overflow:hidden; font-family:var(--font); background:#87ceeb; }
-    canvas#c{ display:block; width:100vw; height:100vh; }
-
-    /* UI */
-    #topbar{
-      position:fixed; top:12px; left:12px; right:12px;
-      display:flex; justify-content:space-between; align-items:center; gap:var(--gap);
-      z-index:50; pointer-events:auto;
-    }
-    .card{
-      background:var(--bg);
-      border-radius:var(--radius);
-      padding:var(--pad);
-      box-shadow:var(--shadow);
-      min-width:260px;
-    }
-    .title{ font-weight:900; font-size:16px; line-height:1.1; }
-    .sub{ font-size:12px; opacity:.75; margin-top:2px; }
-
-    .btn{
-      border:0; border-radius:12px;
-      padding:10px 12px;
-      background:rgba(255,255,255,0.92);
-      box-shadow:var(--shadow);
-      cursor:pointer;
-      font-weight:800;
-      white-space:nowrap;
-    }
-    .btn.primary{ background:#111; color:#fff; }
-
-    #leftPanel{
-      position:fixed; top:82px; left:12px; width:340px;
-      z-index:45; pointer-events:auto;
-      background:var(--bg);
-      border-radius:var(--radius);
-      padding:var(--pad);
-      box-shadow:var(--shadow);
-      display:flex; flex-direction:column; gap:10px;
-      max-height:calc(100vh - 110px);
-    }
-    #leftPanel h3{ margin:0; font-size:14px; }
-    #search{
-      width:100%;
-      padding:10px 12px;
-      border-radius:12px;
-      border:1px solid rgba(0,0,0,0.14);
-      outline:none; font-size:14px; box-sizing:border-box;
-      background:rgba(255,255,255,0.95);
-    }
-    .chips{ display:flex; flex-wrap:wrap; gap:8px; }
-    .chip{
-      display:flex; align-items:center; gap:8px;
-      padding:8px 10px;
-      border-radius:999px;
-      background:rgba(0,0,0,0.06);
-      cursor:pointer; user-select:none;
-      font-size:13px;
-    }
-    .dot{ width:10px; height:10px; border-radius:999px; border:1px solid rgba(0,0,0,0.15); }
-    #results{
-      border-top:1px solid rgba(0,0,0,0.10);
-      padding-top:10px;
-      display:flex; flex-direction:column; gap:8px;
-      overflow:auto;
-    }
-    .resultItem{
-      padding:8px 10px;
-      border-radius:12px;
-      background:rgba(255,255,255,0.92);
-      border:1px solid rgba(0,0,0,0.08);
-      cursor:pointer;
-    }
-    .resultItem .name{ font-weight:900; font-size:13px; }
-    .resultItem .meta{ font-size:12px; opacity:.75; }
-
-    #minimapWrap{
-      position:fixed; right:14px; top:82px;
-      width:220px; height:220px;
-      border-radius:14px;
-      border:2px solid rgba(255,255,255,0.9);
-      box-shadow:0 10px 30px rgba(0,0,0,0.25);
-      z-index:25; pointer-events:none;
-      overflow:hidden;
-      background:rgba(0,0,0,0.25);
-    }
-    #minimapCanvas{ width:220px; height:220px; display:block; }
-
-    #hint{
-      position:fixed; left:12px; bottom:12px;
-      z-index:20; pointer-events:none;
-      color:#fff;
-      background:rgba(0,0,0,0.58);
-      border-radius:14px;
-      padding:10px 12px;
-      max-width:calc(100vw - 24px);
-      line-height:1.25rem; font-size:14px;
-    }
-    #hint b{ color:#ffe58a; }
-
-    #actionPrompt{
-      position:fixed; left:50%; bottom:90px;
-      transform:translateX(-50%);
-      z-index:20; pointer-events:none;
-      color:#fff; background:rgba(0,0,0,0.62);
-      border-radius:14px; padding:10px 12px;
-      display:none;
-      font-size:14px;
+    :root {
+      --ui-radius: 14px;
+      --ui-padding: 12px;
+      --ui-bg: rgba(255,255,255,0.88);
     }
 
-    /* Non-clickable splash that auto-hides */
-    #splash{
-      position:fixed; inset:0;
-      background:rgba(0,0,0,0.55);
-      display:flex; align-items:center; justify-content:center;
-      z-index:60;
-      pointer-events:none; /* not clickable by request */
-    }
-    #splash .panel{
-      width:min(560px,calc(100vw - 24px));
-      background:rgba(255,255,255,0.94);
-      border-radius:18px;
-      padding:16px;
-      box-shadow:0 20px 60px rgba(0,0,0,0.35);
-    }
-    #splash h2{ margin:0 0 6px; }
-    #splash p{ margin:0; opacity:.85; }
-
-    /* If mouse-look/audio not enabled yet, show a tiny banner */
-    #startBanner{
-      position:fixed; left:50%; top:12px;
-      transform:translateX(-50%);
-      z-index:70;
-      display:none;
-      pointer-events:none;
-      background:rgba(0,0,0,0.70);
-      color:#fff;
-      padding:10px 12px;
-      border-radius:999px;
-      font-weight:800;
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      background: #87ceeb;
     }
 
-    /* Simple error pane */
-    #err{
-      position:fixed; inset:0;
-      display:none;
-      background:rgba(0,0,0,0.85);
-      color:#fff;
-      z-index:9999;
-      padding:14px;
-      font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-      overflow:auto;
-      pointer-events:auto;
+    canvas {
+      display: block;
     }
-    #err h3{ margin:0 0 8px; font-family:var(--font); }
-    #err pre{ white-space:pre-wrap; }
+
+    /* ---------- TOP BAR ---------- */
+    #topbar {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      right: 12px;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      z-index: 10;
+      pointer-events: auto;
+    }
+
+    .panel {
+      background: var(--ui-bg);
+      backdrop-filter: blur(8px);
+      border-radius: var(--ui-radius);
+      padding: var(--ui-padding);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+
+    .title {
+      font-weight: 900;
+      font-size: 16px;
+    }
+
+    .subtitle {
+      font-size: 12px;
+      opacity: 0.75;
+    }
+
+    .btn {
+      border: none;
+      border-radius: 10px;
+      padding: 10px 14px;
+      background: #111;
+      color: white;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    /* ---------- LEFT PANEL ---------- */
+    #leftPanel {
+      position: fixed;
+      top: 84px;
+      left: 12px;
+      width: 320px;
+      z-index: 10;
+      pointer-events: auto;
+    }
+
+    #leftPanel h3 {
+      margin: 0 0 8px;
+      font-size: 14px;
+    }
+
+    #search {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid rgba(0,0,0,0.15);
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+
+    /* ---------- MINIMAP ---------- */
+    #minimapFrame {
+      position: fixed;
+      right: 14px;
+      top: 84px;
+      width: 220px;
+      height: 220px;
+      border-radius: 14px;
+      border: 2px solid rgba(255,255,255,0.9);
+      z-index: 5;
+      pointer-events: none;
+    }
+
+    /* ---------- OVERLAY ---------- */
+    #takeControl {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 20;
+      pointer-events: auto;
+    }
+
+    #takeControl .panel {
+      width: 420px;
+      text-align: center;
+    }
+
+    /* ---------- HINT ---------- */
+    #hint {
+      position: fixed;
+      left: 12px;
+      bottom: 12px;
+      background: rgba(0,0,0,0.6);
+      color: white;
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-size: 14px;
+      z-index: 10;
+    }
   </style>
 
-  <!-- Classic (non-module) Three.js + PointerLockControls. Most robust on GH Pages -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/controls/PointerLockControls.js"></script>
+  <!-- IMPORT MAP (simple, reliable) -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+    }
+  }
+  </script>
 </head>
 
 <body>
-  <div id="err"><h3>JavaScript Error</h3><pre id="errText"></pre></div>
 
-  <canvas id="c"></canvas>
+<canvas id="c"></canvas>
 
-  <div id="topbar">
-    <div class="card">
-      <div class="title">Digital Flea Market</div>
-      <div class="sub">Indoor market hall • 3D walkthrough</div>
-    </div>
-    <div style="display:flex; gap:10px; align-items:center;">
-      <button class="btn" id="soundBtn">Sound: Off</button>
-      <button class="btn" id="helpBtn">Help</button>
-      <button class="btn primary" id="resetBtn">Reset (R)</button>
-    </div>
+<!-- UI -->
+<div id="topbar">
+  <div class="panel">
+    <div class="title">Digital Flea Market</div>
+    <div class="subtitle">Walk the aisle • Explore booths</div>
   </div>
+  <button class="btn" id="resetBtn">Reset</button>
+</div>
 
-  <div id="leftPanel">
-    <div style="display:flex; align-items:center; justify-content:space-between;">
-      <h3 style="margin:0;">Find vendors</h3>
-      <div style="font-size:12px; opacity:0.7;" id="matchCount">0 matches</div>
-    </div>
-    <input id="search" placeholder="Search (try: pottery)" />
-    <div class="chips" id="categoryChips"></div>
-    <div id="results"></div>
+<div id="leftPanel" class="panel">
+  <h3>Search Vendors</h3>
+  <input id="search" placeholder="Search (e.g. pottery, jewelry)" />
+</div>
+
+<div id="minimapFrame"></div>
+
+<div id="takeControl">
+  <div class="panel">
+    <h2>Welcome</h2>
+    <p>You are entering the digital flea market aisle.</p>
+    <button class="btn" id="takeControlBtn">Take Control</button>
   </div>
+</div>
 
-  <div id="minimapWrap"><canvas id="minimapCanvas" width="220" height="220"></canvas></div>
+<div id="hint">
+  WASD to move • Mouse to look
+</div>
 
-  <div id="actionPrompt"></div>
+<script type="module">
+import * as THREE from "three";
+import { PointerLockControls } from "three/addons/controls/PointerLockControls.js";
 
-  <div id="hint">
-    <b>WASD</b> move • <b>Shift</b> sprint • <b>R</b> reset • <b>E</b> enter booth • <b>Q</b> exit booth • <b>ESC</b> releases mouse-look
-  </div>
+/* ---------- BASIC FLAGS ---------- */
+let isPlaying = false;
 
-  <div id="splash">
-    <div class="panel">
-      <h2>Welcome</h2>
-      <p>Reading this for a few seconds… then the market opens. You can walk with WASD immediately.</p>
-      <p style="margin-top:10px; font-size:12px; opacity:.75;">
-        Mouse‑look + music require a click/keypress due to browser policies.
-      </p>
-    </div>
-  </div>
+/* ---------- RENDERER ---------- */
+const canvas = document.getElementById("c");
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
 
-  <div id="startBanner">Press any key or click once to enable mouse‑look + music</div>
+/* ---------- SCENE ---------- */
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87ceeb);
 
-<script>
-(() => {
-  const err = (msg) => {
-    document.getElementById('errText').textContent = msg;
-    document.getElementById('err').style.display = 'block';
-  };
-  window.addEventListener('error', (e) => err(String(e.error?.stack || e.message || e)));
-  window.addEventListener('unhandledrejection', (e) => err(String(e.reason?.stack || e.reason || e)));
+/* ---------- CAMERA ---------- */
+const camera = new THREE.PerspectiveCamera(
+  70,
+  window.innerWidth / window.innerHeight,
+  0.1,
+  500
+);
+camera.position.set(0, 1.7, 8);
 
-  // ---------- DATA ----------
-  const CATEGORIES = [
-    { key:"Ceramics", color:"#d8e8ff" },
-    { key:"Jewelry",  color:"#e6ddff" },
-    { key:"Art",      color:"#ffd56a" },
-    { key:"Gifts",    color:"#fff2cc" },
-    { key:"Food",     color:"#ffd1dc" }
-  ];
-  const catColor = Object.fromEntries(CATEGORIES.map(c => [c.key, c.color]));
-  const BOOTHS = [
-    { id:"pottery", name:"Eastside Pottery", categories:["Ceramics"], side:"right", z:-30,
-      desc:"Pottery studio • workshops • open studio",
-      products:[{name:"Beginner Workshop", url:"https://www.eastsidepottery.com/"},{name:"Membership", url:"https://www.eastsidepottery.com/"},{name:"Open Studio", url:"https://www.eastsidepottery.com/"}]
-    },
-    { id:"art", name:"VALA Art Center", categories:["Art"], side:"left", z:-22,
-      desc:"Local art center • exhibits • workshops",
-      products:[{name:"Gallery Visit", url:"https://www.valaeastside.org/"},{name:"Workshops", url:"https://www.valaeastside.org/"},{name:"Donate", url:"https://www.valaeastside.org/"}]
-    },
-    { id:"choco", name:"Brugge Chocolates", categories:["Food","Gifts"], side:"right", z:-58,
-      desc:"Artisan chocolates • gifts",
-      products:[{name:"Build a Box", url:"https://www.bruggechocolates.com/"},{name:"Gift Boxes", url:"https://www.bruggechocolates.com/"},{name:"Gift Cards", url:"https://www.bruggechocolates.com/"}]
-    }
-  ];
+/* ---------- CONTROLS ---------- */
+const controls = new PointerLockControls(camera, document.body);
+scene.add(controls.getObject());
 
-  // ---------- UI FILTERS ----------
-  const chipsEl = document.getElementById("categoryChips");
-  const resultsEl = document.getElementById("results");
-  const matchCountEl = document.getElementById("matchCount");
-  const searchEl = document.getElementById("search");
-  const activeCats = new Set(CATEGORIES.map(c=>c.key));
-  let searchTerm = "";
+/* ---------- LIGHTS ---------- */
+scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+sun.position.set(10, 20, 10);
+scene.add(sun);
 
-  function renderChips(){
-    chipsEl.innerHTML = "";
-    CATEGORIES.forEach(c=>{
-      const div = document.createElement("div");
-      div.className = "chip";
-      div.innerHTML = `<span class="dot" style="background:${c.color}"></span><span>${c.key}</span><span style="opacity:.7">${activeCats.has(c.key) ? "✓" : ""}</span>`;
-      div.onclick = ()=>{
-        if(activeCats.has(c.key)) activeCats.delete(c.key); else activeCats.add(c.key);
-        applyFilters(); renderChips();
-      };
-      chipsEl.appendChild(div);
-    });
-  }
+/* ---------- GROUND ---------- */
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(200, 200),
+  new THREE.MeshStandardMaterial({ color: 0x6fbf73 })
+);
+ground.rotation.x = -Math.PI / 2;
+ground.position.z = -60;
+scene.add(ground);
 
-  function boothMatches(b){
-    const catOK = (b.categories||[]).some(c=>activeCats.has(c));
-    if(!catOK) return false;
-    if(!searchTerm) return true;
-    const hay = [b.name, b.desc, ...(b.categories||[]), ...((b.products||[]).map(p=>p.name))].join(" ").toLowerCase();
-    return hay.includes(searchTerm);
-  }
+/* ---------- AISLE ---------- */
+const aisle = new THREE.Mesh(
+  new THREE.PlaneGeometry(5, 120),
+  new THREE.MeshStandardMaterial({ color: 0xc9b08a })
+);
+aisle.rotation.x = -Math.PI / 2;
+aisle.position.z = -60;
+aisle.position.y = 0.01;
+scene.add(aisle);
 
-  searchEl.addEventListener("input", ()=>{
-    searchTerm = (searchEl.value||"").trim().toLowerCase();
-    applyFilters();
-  });
-
-  // ---------- THREE SCENE ----------
-  const canvas = document.getElementById("c");
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
-  renderer.setSize(innerWidth, innerHeight);
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-  renderer.shadowMap.enabled = true;
-
-  const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xbddcf7);
-
-  const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 1000);
-  camera.position.set(0, 1.7, 10);
-
-  // Indoor hall: floor + walls + ceiling
-  const floorTex = (() => {
-    const c = document.createElement("canvas");
-    c.width = 512; c.height = 512;
-    const ctx = c.getContext("2d");
-    ctx.fillStyle = "#d9d7d2";
-    ctx.fillRect(0,0,512,512);
-    ctx.strokeStyle = "rgba(0,0,0,0.08)";
-    ctx.lineWidth = 2;
-    for(let i=0;i<=16;i++){
-      ctx.beginPath(); ctx.moveTo(i*32,0); ctx.lineTo(i*32,512); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(0,i*32); ctx.lineTo(512,i*32); ctx.stroke();
-    }
-    const t = new THREE.CanvasTexture(c);
-    t.wrapS = t.wrapT = THREE.RepeatWrapping;
-    t.repeat.set(6,6);
-    return t;
-  })();
-
-  const floor = new THREE.Mesh(
-    new THREE.PlaneGeometry(140, 180),
-    new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.95, metalness: 0.0 })
+/* ---------- BOOTHS ---------- */
+function addBooth(x, z, color) {
+  const booth = new THREE.Mesh(
+    new THREE.BoxGeometry(2.5, 2, 2),
+    new THREE.MeshStandardMaterial({ color })
   );
-  floor.rotation.x = -Math.PI/2;
-  floor.receiveShadow = true;
-  floor.position.z = -60;
-  scene.add(floor);
+  booth.position.set(x, 1, z);
+  scene.add(booth);
+}
 
-  const wallMat = new THREE.MeshStandardMaterial({ color: 0xf2f2f2, roughness: 1 });
-  const backWall = new THREE.Mesh(new THREE.BoxGeometry(140, 18, 1), wallMat);
-  backWall.position.set(0, 9, -150);
-  scene.add(backWall);
+for (let i = 0; i < 6; i++) {
+  addBooth(-8, -10 - i * 12, 0xffd56a);
+  addBooth( 8, -10 - i * 12, 0xaad7ff);
+}
 
-  const sideWallL = new THREE.Mesh(new THREE.BoxGeometry(1, 18, 180), wallMat);
-  sideWallL.position.set(-70, 9, -60);
-  scene.add(sideWallL);
+/* ---------- MOVEMENT ---------- */
+const velocity = new THREE.Vector3();
+const direction = new THREE.Vector3();
+const move = { f: false, b: false, l: false, r: false };
 
-  const sideWallR = new THREE.Mesh(new THREE.BoxGeometry(1, 18, 180), wallMat);
-  sideWallR.position.set(70, 9, -60);
-  scene.add(sideWallR);
+document.addEventListener("keydown", e => {
+  if (!isPlaying) return;
+  if (e.code === "KeyW") move.f = true;
+  if (e.code === "KeyS") move.b = true;
+  if (e.code === "KeyA") move.l = true;
+  if (e.code === "KeyD") move.r = true;
+});
 
-  const ceiling = new THREE.Mesh(
-    new THREE.PlaneGeometry(140, 180),
-    new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1 })
-  );
-  ceiling.rotation.x = Math.PI/2;
-  ceiling.position.set(0, 18, -60);
-  scene.add(ceiling);
+document.addEventListener("keyup", e => {
+  if (e.code === "KeyW") move.f = false;
+  if (e.code === "KeyS") move.b = false;
+  if (e.code === "KeyA") move.l = false;
+  if (e.code === "KeyD") move.r = false;
+});
 
-  // Lights
-  scene.add(new THREE.AmbientLight(0xffffff, 0.35));
-  for(let i=0;i<10;i++){
-    const light = new THREE.PointLight(0xffffff, 0.65, 45);
-    light.position.set(-50 + i*11, 16.5, -20 - i*12);
-    scene.add(light);
-  }
-  const sun = new THREE.DirectionalLight(0xffffff, 0.8);
-  sun.position.set(20, 30, 20);
-  sun.castShadow = true;
-  scene.add(sun);
+/* ---------- TAKE CONTROL ---------- */
+document.getElementById("takeControlBtn").onclick = () => {
+  document.getElementById("takeControl").style.display = "none";
+  isPlaying = true;
+  controls.lock();
+};
 
-  // Controls (pointer lock)
-  const controls = new THREE.PointerLockControls(camera, document.body);
+/* ---------- LOOP ---------- */
+const clock = new THREE.Clock();
 
-  // Movement
-  const velocity = new THREE.Vector3();
-  const direction = new THREE.Vector3();
-  const move = { f:false, b:false, l:false, r:false, sprint:false };
-  const clock = new THREE.Clock();
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = clock.getDelta();
 
-  // World bounds (free roam in hall)
-  const BOUNDS = { minX:-62, maxX:62, minZ:-145, maxZ:20 };
-  function clamp(){
-    const p = controls.getObject().position;
-    p.x = THREE.MathUtils.clamp(p.x, BOUNDS.minX, BOUNDS.maxX);
-    p.z = THREE.MathUtils.clamp(p.z, BOUNDS.minZ, BOUNDS.maxZ);
-    p.y = 1.7;
-  }
+  if (isPlaying) {
+    velocity.z -= velocity.z * 10 * dt;
+    velocity.x -= velocity.x * 10 * dt;
 
-  // Realistic booths
-  const boothMeshes = [];
-  function makeSignTexture(text){
-    const c = document.createElement("canvas");
-    c.width = 512; c.height = 256;
-    const ctx = c.getContext("2d");
-    ctx.fillStyle = "rgba(20,20,20,0.92)";
-    ctx.fillRect(0,0,512,256);
-    ctx.fillStyle = "#fff";
-    ctx.font = "bold 36px system-ui";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(text, 256, 120);
-    ctx.font = "600 18px system-ui";
-    ctx.fillStyle = "rgba(255,255,255,0.85)";
-    ctx.fillText("Walk closer + click for info", 256, 175);
-    return new THREE.CanvasTexture(c);
+    direction.z = Number(move.f) - Number(move.b);
+    direction.x = Number(move.r) - Number(move.l);
+    direction.normalize();
+
+    const speed = 10;
+    if (move.f || move.b) velocity.z -= direction.z * speed * dt;
+    if (move.l || move.r) velocity.x -= direction.x * speed * dt;
+
+    controls.moveRight(-velocity.x * dt);
+    controls.moveForward(-velocity.z * dt);
   }
 
-  function addBooth(b){
-    const x = (b.side === "left") ? -18 : 18;
-    const z = b.z;
+  renderer.render(scene, camera);
+}
 
-    const g = new THREE.Group();
-    g.position.set(x, 0, z);
+animate();
 
-    // Fabric canopy (simple)
-    const canopyMat = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(catColor[b.categories[0]] || "#ffffff"),
-      roughness: 0.95,
-      metalness: 0.0
-    });
-    const canopy = new THREE.Mesh(new THREE.ConeGeometry(2.3, 1.2, 4), canopyMat);
-    canopy.position.set(0, 2.4, 0);
-    canopy.castShadow = true;
-    g.add(canopy);
+window.addEventListener("resize", () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
 
-    // Legs
-    const legMat = new THREE.MeshStandardMaterial({ color: 0x7a5a34, roughness: 1 });
-    const legGeo = new THREE.CylinderGeometry(0.08, 0.08, 2.4, 10);
-    [[-1.2,-1.2],[1.2,-1.2],[-1.2,1.2],[1.2,1.2]].forEach(([lx,lz])=>{
-      const leg = new THREE.Mesh(legGeo, legMat);
-      leg.position.set(lx, 1.2, lz);
-      leg.castShadow = true;
-      g.add(leg);
-    });
-
-    // Table
-    const table = new THREE.Mesh(
-      new THREE.BoxGeometry(2.6, 0.14, 1.2),
-      new THREE.MeshStandardMaterial({ color: 0x8b6a42, roughness: 1 })
-    );
-    table.position.set(0, 0.75, 0.3);
-    table.castShadow = true;
-    table.receiveShadow = true;
-    g.add(table);
-
-    // Backboard
-    const back = new THREE.Mesh(
-      new THREE.BoxGeometry(2.8, 2.0, 0.15),
-      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1 })
-    );
-    back.position.set(0, 1.1, -1.35);
-    back.castShadow = true;
-    g.add(back);
-
-    // Sign (clickable)
-    const sign = new THREE.Mesh(
-      new THREE.BoxGeometry(2.8, 0.75, 0.10),
-      new THREE.MeshStandardMaterial({ map: makeSignTexture(b.name) })
-    );
-    sign.position.set(0, 1.7, 1.6);
-    sign.castShadow = true;
-    sign.userData = { type:"booth", boothId:b.id };
-    g.add(sign);
-
-    // Some “products” on table (clickable)
-    b.products.slice(0,3).forEach((p, i)=>{
-      const box = new THREE.Mesh(
-        new THREE.BoxGeometry(0.7, 0.5, 0.7),
-        new THREE.MeshStandardMaterial({ color: [0xffd56a,0xaad7ff,0xd6ffa5][i%3], roughness:0.8 })
-      );
-      box.position.set(-0.9 + i*0.9, 1.1, 0.25);
-      box.castShadow = true;
-      box.userData = { type:"product", boothId:b.id, productIndex:i };
-      g.add(box);
-    });
-
-    scene.add(g);
-    boothMeshes.push({ booth:b, group:g });
-    return g;
-  }
-
-  BOOTHS.forEach(addBooth);
-
-  // Apply filter visibility
-  function applyFilters(){
-    const matches = [];
-    boothMeshes.forEach(({booth, group})=>{
-      const ok = boothMatches(booth);
-      group.visible = ok;
-      if(ok) matches.push(booth);
-    });
-
-    matchCountEl.textContent = `${matches.length} match${matches.length===1?"":"es"}`;
-    resultsEl.innerHTML = "";
-    matches.forEach(b=>{
-      const div = document.createElement("div");
-      div.className = "resultItem";
-      div.innerHTML = `<div class="name">${b.name}</div><div class="meta">${b.categories.join(", ")}</div>`;
-      div.onclick = ()=>{
-        // jump near booth
-        controls.getObject().position.set(0, 1.7, b.z + 12);
-      };
-      resultsEl.appendChild(div);
-    });
-  }
-
-  renderChips();
-  applyFilters();
-
-  // ---------- MINIMAP (2D canvas, always works) ----------
-  const mm = document.getElementById("minimapCanvas");
-  const mmctx = mm.getContext("2d");
-  function drawMinimap(){
-    // map bounds => minimap
-    const p = controls.getObject().position;
-    const w = mm.width, h = mm.height;
-    mmctx.clearRect(0,0,w,h);
-
-    // background
-    mmctx.fillStyle = "rgba(20,30,40,0.80)";
-    mmctx.fillRect(0,0,w,h);
-
-    // hall rectangle
-    mmctx.strokeStyle = "rgba(255,255,255,0.55)";
-    mmctx.lineWidth = 2;
-    mmctx.strokeRect(12,12,w-24,h-24);
-
-    // helper to map world -> minimap
-    const mapX = (x) => 12 + ( (x - BOUNDS.minX) / (BOUNDS.maxX - BOUNDS.minX) ) * (w-24);
-    const mapZ = (z) => 12 + ( (z - BOUNDS.minZ) / (BOUNDS.maxZ - BOUNDS.minZ) ) * (h-24);
-
-    // booths
-    boothMeshes.forEach(({booth, group})=>{
-      if(!group.visible) return;
-      const bx = group.position.x;
-      const bz = group.position.z;
-      mmctx.fillStyle = catColor[booth.categories[0]] || "#fff";
-      mmctx.beginPath();
-      mmctx.arc(mapX(bx), mapZ(bz), 4, 0, Math.PI*2);
-      mmctx.fill();
-    });
-
-    // player
-    mmctx.fillStyle = "#ff3333";
-    mmctx.beginPath();
-    mmctx.arc(mapX(p.x), mapZ(p.z), 5, 0, Math.PI*2);
-    mmctx.fill();
-
-    // facing direction arrow
-    const ang = controls.getObject().rotation.y;
-    const px = mapX(p.x), pz = mapZ(p.z);
+</body>
+</html>
