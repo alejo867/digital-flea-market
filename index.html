@@ -1,312 +1,941 @@
 <!DOCTYPE html>
+<!--
+  DIGITAL FLEA MARKET — Redmond, WA
+  ===================================
+  UNAVOIDABLE CONSTRAINT: Browser security policy requires a user gesture
+  (click or keypress) before pointer lock can be acquired and Web Audio can
+  start. Mouse-look and ambient music therefore activate on the first click
+  inside the 3D scene — NOT on page load. The intro overlay auto-dismisses
+  after ~6 seconds and a banner then prompts "Click to enable mouse-look + music".
+-->
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Digital Flea Market</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Digital Flea Market — Redmond, WA</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#111; overflow:hidden; font-family:'Segoe UI',sans-serif; }
+  #c { display:block; width:100vw; height:100vh; }
 
-  <style>
-    :root {
-      --ui-radius: 14px;
-      --ui-padding: 12px;
-      --ui-bg: rgba(255,255,255,0.88);
-    }
+  /* Error overlay */
+  #errorBox {
+    display:none; position:fixed; top:0; left:0; right:0; bottom:0;
+    background:rgba(0,0,0,.85); color:#f55; z-index:9999;
+    padding:40px; font-family:monospace; font-size:14px; white-space:pre-wrap; overflow:auto;
+  }
 
-    html, body {
-      margin: 0;
-      height: 100%;
-      overflow: hidden;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
-      background: #87ceeb;
-    }
+  /* Intro overlay */
+  #intro {
+    position:fixed; inset:0; background:rgba(10,6,2,.96);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    z-index:1000; transition:opacity 1s ease;
+  }
+  #intro h1 { font-size:3rem; color:#f4c56a; letter-spacing:.2em; text-transform:uppercase; margin-bottom:.3em; }
+  #intro .sub { color:#c8a96e; font-size:1.1rem; margin-bottom:2em; letter-spacing:.1em; }
+  #intro .inst { color:#e8d5a0; font-size:.95rem; line-height:1.9; text-align:center; }
+  #intro .inst kbd {
+    background:#333; border:1px solid #666; border-radius:4px;
+    padding:2px 7px; font-family:monospace; font-size:.9em; color:#ffd;
+  }
+  #intro .note { margin-top:1.5em; color:#888; font-size:.82rem; }
 
-    canvas {
-      display: block;
-    }
+  /* Pointer-lock banner */
+  #plBanner {
+    display:none; position:fixed; bottom:22px; left:50%; transform:translateX(-50%);
+    background:rgba(20,12,4,.88); border:1px solid #c8943a;
+    color:#f4c56a; padding:10px 22px; border-radius:30px;
+    font-size:.88rem; z-index:800; pointer-events:none; letter-spacing:.05em;
+  }
 
-    /* ---------- TOP BAR ---------- */
-    #topbar {
-      position: fixed;
-      top: 12px;
-      left: 12px;
-      right: 12px;
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      z-index: 10;
-      pointer-events: auto;
-    }
+  /* HUD */
+  #hud {
+    position:fixed; top:14px; left:14px; z-index:500;
+    display:flex; flex-direction:column; gap:8px; pointer-events:none;
+  }
+  #hud button { pointer-events:all; }
+  .hudBtn {
+    background:rgba(20,12,4,.8); border:1px solid #9a6c2a;
+    color:#f4c56a; padding:6px 14px; border-radius:6px; cursor:pointer;
+    font-size:.8rem; letter-spacing:.05em;
+  }
+  .hudBtn:hover { background:#3a2410; }
 
-    .panel {
-      background: var(--ui-bg);
-      backdrop-filter: blur(8px);
-      border-radius: var(--ui-radius);
-      padding: var(--ui-padding);
-      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-    }
+  /* Minimap */
+  #minimap {
+    position:fixed; top:14px; right:14px; z-index:500;
+    border:2px solid #9a6c2a; border-radius:8px; overflow:hidden;
+    background:#111; box-shadow:0 2px 12px rgba(0,0,0,.7);
+  }
+  #minimapCanvas { display:block; }
+  #minimapLabel { position:absolute; top:3px; left:0; right:0; text-align:center;
+    color:#c8943a; font-size:.65rem; letter-spacing:.1em; pointer-events:none; }
 
-    .title {
-      font-weight: 900;
-      font-size: 16px;
-    }
+  /* Search/filter panel */
+  #panel {
+    position:fixed; left:14px; top:50%; transform:translateY(-50%);
+    width:190px; background:rgba(16,10,4,.9); border:1px solid #7a5020;
+    border-radius:10px; padding:12px; z-index:500; color:#e8d0a0;
+  }
+  #panel h3 { font-size:.8rem; letter-spacing:.12em; color:#c8943a; margin-bottom:8px; text-transform:uppercase; }
+  #searchBox {
+    width:100%; background:#1a1006; border:1px solid #6a4018; border-radius:5px;
+    color:#f0e0b0; padding:5px 8px; font-size:.82rem; outline:none; margin-bottom:8px;
+  }
+  #chips { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:8px; }
+  .chip {
+    background:#2a1808; border:1px solid #7a4820; color:#c8a060;
+    padding:2px 9px; border-radius:20px; font-size:.72rem; cursor:pointer; transition:.15s;
+  }
+  .chip.active, .chip:hover { background:#c8943a; color:#111; border-color:#c8943a; }
+  #results { max-height:140px; overflow-y:auto; }
+  .rItem {
+    padding:5px 6px; border-radius:5px; font-size:.78rem; cursor:pointer;
+    color:#d0b880; border-bottom:1px solid #2a1808;
+  }
+  .rItem:hover { background:#2a1808; }
 
-    .subtitle {
-      font-size: 12px;
-      opacity: 0.75;
-    }
+  /* Modal */
+  #modal {
+    display:none; position:fixed; inset:0; background:rgba(0,0,0,.75);
+    z-index:2000; align-items:center; justify-content:center;
+  }
+  #modal.open { display:flex; }
+  #modalBox {
+    background:#1c1006; border:2px solid #9a6c2a; border-radius:12px;
+    padding:28px 32px; max-width:380px; width:90%; color:#e8d0a0; position:relative;
+  }
+  #modalBox h2 { color:#f4c56a; margin-bottom:.4em; font-size:1.25rem; }
+  #modalBox .mprice { color:#c8a060; font-size:.9rem; margin-bottom:.5em; }
+  #modalBox .mdesc { font-size:.85rem; line-height:1.6; margin-bottom:1.2em; color:#c8b88a; }
+  #modalBox .mbtns { display:flex; gap:10px; }
+  #modalBox a {
+    flex:1; text-align:center; padding:9px; border-radius:7px; text-decoration:none;
+    font-size:.85rem; font-weight:600; letter-spacing:.05em;
+  }
+  .mbuy { background:#c8943a; color:#111; }
+  .mbuy:hover { background:#e0a84a; }
+  .mvisit { background:#2a1808; border:1px solid #9a6c2a; color:#f4c56a; }
+  .mvisit:hover { background:#3a2410; }
+  #modalClose {
+    position:absolute; top:10px; right:14px; background:none; border:none;
+    color:#888; font-size:1.2rem; cursor:pointer;
+  }
+  #modalClose:hover { color:#f4c56a; }
 
-    .btn {
-      border: none;
-      border-radius: 10px;
-      padding: 10px 14px;
-      background: #111;
-      color: white;
-      cursor: pointer;
-      font-weight: 700;
-    }
+  /* Crosshair */
+  #xhair {
+    position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+    pointer-events:none; z-index:600;
+  }
+  #xhair::before, #xhair::after {
+    content:''; position:absolute; background:rgba(255,255,255,.6);
+  }
+  #xhair::before { width:14px; height:1px; top:0; left:-7px; }
+  #xhair::after { width:1px; height:14px; top:-7px; left:0; }
 
-    /* ---------- LEFT PANEL ---------- */
-    #leftPanel {
-      position: fixed;
-      top: 84px;
-      left: 12px;
-      width: 320px;
-      z-index: 10;
-      pointer-events: auto;
-    }
+  /* Interact prompt */
+  #prompt {
+    display:none; position:fixed; bottom:60px; left:50%; transform:translateX(-50%);
+    background:rgba(20,12,4,.88); border:1px solid #c8943a; color:#f4c56a;
+    padding:8px 20px; border-radius:20px; font-size:.82rem; z-index:700; pointer-events:none;
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="errorBox"></div>
 
-    #leftPanel h3 {
-      margin: 0 0 8px;
-      font-size: 14px;
-    }
+<!-- Intro overlay -->
+<div id="intro">
+  <h1>🏪 Digital Flea Market</h1>
+  <div class="sub">Redmond, WA — Indoor Market Hall</div>
+  <div class="inst">
+    <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move &nbsp;|&nbsp; <kbd>Shift</kbd> Sprint &nbsp;|&nbsp; <kbd>R</kbd> Reset<br>
+    <kbd>E</kbd> Enter booth &nbsp;|&nbsp; <kbd>Q</kbd> Exit booth<br>
+    Click items to view products<br>
+    <kbd>ESC</kbd> Release mouse look
+  </div>
+  <div class="note">⚠ Mouse-look &amp; audio require a click to start (browser policy)</div>
+</div>
 
-    #search {
-      width: 100%;
-      padding: 10px 12px;
-      border-radius: 10px;
-      border: 1px solid rgba(0,0,0,0.15);
-      font-size: 14px;
-      box-sizing: border-box;
-    }
+<div id="plBanner">🖱 Click once to enable mouse-look + music</div>
+<div id="xhair"></div>
+<div id="prompt"></div>
 
-    /* ---------- MINIMAP ---------- */
-    #minimapFrame {
-      position: fixed;
-      right: 14px;
-      top: 84px;
-      width: 220px;
-      height: 220px;
-      border-radius: 14px;
-      border: 2px solid rgba(255,255,255,0.9);
-      z-index: 5;
-      pointer-events: none;
-    }
+<!-- HUD -->
+<div id="hud">
+  <button class="hudBtn" id="resetBtn">↺ Reset (R)</button>
+  <button class="hudBtn" id="soundBtn">🔊 Sound</button>
+</div>
 
-    /* ---------- OVERLAY ---------- */
-    #takeControl {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.45);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 20;
-      pointer-events: auto;
-    }
+<!-- Minimap -->
+<div id="minimap" style="width:140px;height:140px;">
+  <canvas id="minimapCanvas" width="136" height="136"></canvas>
+  <div id="minimapLabel">MAP</div>
+</div>
 
-    #takeControl .panel {
-      width: 420px;
-      text-align: center;
-    }
+<!-- Search panel -->
+<div id="panel">
+  <h3>🔍 Find Vendors</h3>
+  <input id="searchBox" type="text" placeholder="Search booths…">
+  <div id="chips">
+    <span class="chip" data-cat="all">All</span>
+    <span class="chip" data-cat="Ceramics">Ceramics</span>
+    <span class="chip" data-cat="Jewelry">Jewelry</span>
+    <span class="chip" data-cat="Art">Art</span>
+    <span class="chip" data-cat="Food">Food</span>
+    <span class="chip" data-cat="Gifts">Gifts</span>
+  </div>
+  <div id="results"></div>
+</div>
 
-    /* ---------- HINT ---------- */
-    #hint {
-      position: fixed;
-      left: 12px;
-      bottom: 12px;
-      background: rgba(0,0,0,0.6);
-      color: white;
-      padding: 10px 14px;
-      border-radius: 12px;
-      font-size: 14px;
-      z-index: 10;
-    }
-  </style>
+<!-- Modal -->
+<div id="modal">
+  <div id="modalBox">
+    <button id="modalClose">✕</button>
+    <h2 id="mTitle"></h2>
+    <div class="mprice" id="mPrice"></div>
+    <div class="mdesc" id="mDesc"></div>
+    <div class="mbtns">
+      <a id="mBuy" class="mbuy" href="#" target="_blank">🛒 Buy Now</a>
+      <a id="mVisit" class="mvisit" href="#" target="_blank">🌐 Visit Store</a>
+    </div>
+  </div>
+</div>
 
-  <!-- IMPORT MAP (simple, reliable) -->
-  <script type="importmap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+<script>
+// ─── Error handler ───────────────────────────────────────────────────────────
+window.onerror = (msg,src,line,col,err)=>{
+  const b=document.getElementById('errorBox');
+  b.style.display='block';
+  b.textContent=`ERROR: ${msg}\n${src}:${line}:${col}\n${err&&err.stack||''}`;
+};
+window.addEventListener('unhandledrejection',e=>{
+  const b=document.getElementById('errorBox');
+  b.style.display='block';
+  b.textContent=`PROMISE ERROR: ${e.reason}`;
+});
+
+// ─── Booth data ───────────────────────────────────────────────────────────────
+const BOOTHS = [
   {
-    "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
-      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+    id:0, name:"Sip Redmond", category:"Food", color:0x8B4513,
+    canopyColor:0xcc3322, tableColor:0x6b3a1f,
+    pos:{x:-6, z:-8}, products:[
+      {name:"Signature Blend Coffee Bag",price:"$18",desc:"Small-batch roasted, notes of caramel & citrus.",buy:"https://sipredmond.com",visit:"https://sipredmond.com"},
+      {name:"Ceramic Pour-Over Set",price:"$42",desc:"Hand-thrown ceramic dripper + matching mug.",buy:"https://sipredmond.com",visit:"https://sipredmond.com"},
+      {name:"Cold Brew 6-Pack",price:"$24",desc:"Smooth, low-acid cold brew in glass bottles.",buy:"https://sipredmond.com",visit:"https://sipredmond.com"},
+    ]
+  },
+  {
+    id:1, name:"Redmond Clay & Co.", category:"Ceramics", color:0x9c6b44, 
+    canopyColor:0xd4936a, tableColor:0x7a5230,
+    pos:{x:6, z:-8}, products:[
+      {name:"Handmade Stoneware Bowl",price:"$36",desc:"Wheel-thrown stoneware with speckled glaze.",buy:"https://redmondclay.com",visit:"https://redmondclay.com"},
+      {name:"Bud Vase Set (3)",price:"$28",desc:"Three petite vases in muted earth tones.",buy:"https://redmondclay.com",visit:"https://redmondclay.com"},
+      {name:"Mug Collection",price:"$22",desc:"Comfortable handle, 14oz capacity, dishwasher safe.",buy:"https://redmondclay.com",visit:"https://redmondclay.com"},
+    ]
+  },
+  {
+    id:2, name:"Cascade Jewelry Studio", category:"Jewelry", color:0x2c3a4a,
+    canopyColor:0x3a6e8c, tableColor:0x1c2a38,
+    pos:{x:-6, z:0}, products:[
+      {name:"Silver Fern Pendant",price:"$65",desc:"Sterling silver, inspired by Pacific NW ferns.",buy:"https://cascadejewelry.com",visit:"https://cascadejewelry.com"},
+      {name:"Copper Cuff Bracelet",price:"$48",desc:"Hammered copper with turquoise inlay.",buy:"https://cascadejewelry.com",visit:"https://cascadejewelry.com"},
+      {name:"Earring Pair — Raindrop",price:"$32",desc:"Fine silver, forged into delicate raindrop shapes.",buy:"https://cascadejewelry.com",visit:"https://cascadejewelry.com"},
+    ]
+  },
+  {
+    id:3, name:"Sammamish Valley Art", category:"Art", color:0x3a2a1a,
+    canopyColor:0x7a5c3a, tableColor:0x2a1c10,
+    pos:{x:6, z:0}, products:[
+      {name:"Mt. Rainier Watercolor Print",price:"$55",desc:"16×20 archival print, signed & numbered.",buy:"https://sammamishvalleyart.com",visit:"https://sammamishvalleyart.com"},
+      {name:"Redmond Town Center Sketch",price:"$45",desc:"Pen & ink original on 140lb paper.",buy:"https://sammamishvalleyart.com",visit:"https://sammamishvalleyart.com"},
+      {name:"Salish Sea Oil Painting",price:"$320",desc:"9×12 original oil, framed in reclaimed wood.",buy:"https://sammamishvalleyart.com",visit:"https://sammamishvalleyart.com"},
+    ]
+  },
+  {
+    id:4, name:"Eastside Handmade Gifts", category:"Gifts", color:0x4a2060,
+    canopyColor:0x9a5ab0, tableColor:0x3a1850,
+    pos:{x:-6, z:8}, products:[
+      {name:"Beeswax Candle Set",price:"$26",desc:"Hand-poured beeswax, lavender & cedar scents.",buy:"https://eastsidegifts.com",visit:"https://eastsidegifts.com"},
+      {name:"Local Honey Sampler",price:"$34",desc:"Three varietals from Snoqualmie Valley apiaries.",buy:"https://eastsidegifts.com",visit:"https://eastsidegifts.com"},
+      {name:"Upcycled Denim Tote",price:"$38",desc:"Made from reclaimed denim, screen-printed locally.",buy:"https://eastsidegifts.com",visit:"https://eastsidegifts.com"},
+    ]
+  },
+  {
+    id:5, name:"Marymoor Provisions", category:"Food", color:0x2a4a2a,
+    canopyColor:0x4a8a4a, tableColor:0x1a3a1a,
+    pos:{x:6, z:8}, products:[
+      {name:"Sourdough Loaf",price:"$12",desc:"Long-fermented sourdough, sesame-topped.",buy:"https://marymoorbakery.com",visit:"https://marymoorbakery.com"},
+      {name:"Wildflower Jam (3-pack)",price:"$22",desc:"Blackberry, rose hip, and apricot lavender.",buy:"https://marymoorbakery.com",visit:"https://marymoorbakery.com"},
+      {name:"Granola — NW Harvest Blend",price:"$16",desc:"Oats, hazelnuts, dried cranberries, maple.",buy:"https://marymoorbakery.com",visit:"https://marymoorbakery.com"},
+    ]
+  },
+];
+
+// ─── Core setup ───────────────────────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a1008);
+scene.fog = new THREE.FogExp2(0x1a1008, 0.03);
+
+const camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.1, 200);
+camera.position.set(0, 1.7, 18);
+camera.rotation.order = 'YXZ';
+
+window.addEventListener('resize', ()=>{
+  renderer.setSize(innerWidth,innerHeight);
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+});
+
+// ─── Player state ─────────────────────────────────────────────────────────────
+const player = {
+  yaw:0, pitch:0, 
+  startPos: new THREE.Vector3(0, 1.7, 18),
+  startYaw:0, startPitch:0,
+  inBooth: null, // booth id or null
+  boothEntry: null, // THREE.Vector3 of booth interior pos
+};
+const keys = {};
+document.addEventListener('keydown', e=>{ keys[e.code]=true; });
+document.addEventListener('keyup', e=>{ keys[e.code]=false; });
+
+function resetPlayer(){
+  camera.position.copy(player.startPos);
+  player.yaw = player.startYaw;
+  player.pitch = player.startPitch;
+  camera.rotation.set(player.pitch, player.yaw, 0);
+  player.inBooth = null;
+}
+
+document.getElementById('resetBtn').addEventListener('click', resetPlayer);
+document.addEventListener('keydown', e=>{ if(e.code==='KeyR') resetPlayer(); });
+
+// ─── Pointer lock ─────────────────────────────────────────────────────────────
+let plLocked = false;
+const plBanner = document.getElementById('plBanner');
+
+canvas.addEventListener('click', ()=>{
+  startAudio();
+  if(!plLocked){
+    const req = canvas.requestPointerLock();
+    if(req && req.catch) req.catch(()=>{}); // suppress promise rejection in newer browsers
+  }
+});
+document.addEventListener('pointerlockchange', ()=>{
+  plLocked = document.pointerLockElement === canvas;
+  plBanner.style.display = (!plLocked && introGone) ? 'block' : 'none';
+  if(plLocked) plBanner.style.display='none';
+});
+document.addEventListener('mousemove', e=>{
+  if(!plLocked) return;
+  player.yaw   -= e.movementX * 0.002;
+  player.pitch -= e.movementY * 0.002;
+  player.pitch  = Math.max(-Math.PI/2.2, Math.min(Math.PI/2.2, player.pitch));
+  camera.rotation.set(player.pitch, player.yaw, 0);
+});
+
+// ─── Audio (procedural) ───────────────────────────────────────────────────────
+let audioCtx, audioStarted=false;
+let soundOn = true;
+let masterGain;
+
+function startAudio(){
+  if(audioStarted || !soundOn) return;
+  audioStarted = true;
+  try {
+    audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = 0.18;
+    masterGain.connect(audioCtx.destination);
+
+    // Ambient crowd murmur — filtered noise
+    const bufSize = audioCtx.sampleRate * 3;
+    const buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+    const data = buf.getChannelData(0);
+    for(let i=0;i<bufSize;i++) data[i]=(Math.random()*2-1);
+    const noise = audioCtx.createBufferSource();
+    noise.buffer = buf; noise.loop = true;
+    const lpf = audioCtx.createBiquadFilter();
+    lpf.type='lowpass'; lpf.frequency.value=600; lpf.Q.value=1.5;
+    noise.connect(lpf); lpf.connect(masterGain);
+    noise.start();
+
+    // Simple melodic background — pentatonic arp
+    const notes = [220,261.63,293.66,349.23,392,440,523.25];
+    let ni=0;
+    function playNote(){
+      if(!soundOn||!audioCtx) return;
+      const osc = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      osc.type='sine';
+      osc.frequency.value = notes[ni%notes.length];
+      ni++;
+      g.gain.setValueAtTime(0.001,audioCtx.currentTime);
+      g.gain.linearRampToValueAtTime(0.04,audioCtx.currentTime+0.08);
+      g.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+1.2);
+      osc.connect(g); g.connect(masterGain);
+      osc.start(); osc.stop(audioCtx.currentTime+1.4);
+      setTimeout(playNote, 600 + Math.random()*1200);
+    }
+    playNote();
+  } catch(e){ console.warn('Audio init failed',e); }
+}
+
+document.getElementById('soundBtn').addEventListener('click', ()=>{
+  soundOn = !soundOn;
+  document.getElementById('soundBtn').textContent = soundOn ? '🔊 Sound' : '🔇 Muted';
+  if(masterGain) masterGain.gain.value = soundOn ? 0.18 : 0;
+  if(soundOn && !audioStarted) startAudio();
+});
+
+// Also start audio on any keypress
+document.addEventListener('keydown', ()=>{ if(introGone && soundOn) startAudio(); },{once:true});
+
+// ─── Texture helpers ──────────────────────────────────────────────────────────
+function makeCheckerTex(c1,c2,size=256,squares=16){
+  const cv=document.createElement('canvas'); cv.width=cv.height=size;
+  const ctx=cv.getContext('2d');
+  const s=size/squares;
+  for(let y=0;y<squares;y++) for(let x=0;x<squares;x++){
+    ctx.fillStyle=(x+y)%2===0?c1:c2;
+    ctx.fillRect(x*s,y*s,s,s);
+  }
+  const t=new THREE.CanvasTexture(cv);
+  t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(8,8);
+  return t;
+}
+
+function makeWoodTex(w=256,h=256){
+  const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+  const ctx=cv.getContext('2d');
+  ctx.fillStyle='#6b3a1f'; ctx.fillRect(0,0,w,h);
+  for(let i=0;i<40;i++){
+    ctx.strokeStyle=`rgba(${40+Math.random()*30},${20+Math.random()*15},${5+Math.random()*10},0.3)`;
+    ctx.lineWidth=1+Math.random()*2;
+    ctx.beginPath(); ctx.moveTo(0,i*(h/40)+Math.random()*5);
+    ctx.lineTo(w,i*(h/40)+Math.random()*5); ctx.stroke();
+  }
+  const t=new THREE.CanvasTexture(cv);
+  t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(2,2);
+  return t;
+}
+
+function makeConcreteTex(){
+  const cv=document.createElement('canvas'); cv.width=cv.height=256;
+  const ctx=cv.getContext('2d');
+  ctx.fillStyle='#3a3028'; ctx.fillRect(0,0,256,256);
+  for(let i=0;i<3000;i++){
+    const x=Math.random()*256,y=Math.random()*256;
+    const g=Math.random()*30-15;
+    ctx.fillStyle=`rgba(${120+g},${100+g},${80+g},0.15)`;
+    ctx.fillRect(x,y,1,1);
+  }
+  const t=new THREE.CanvasTexture(cv);
+  t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(12,12);
+  return t;
+}
+
+function makeBrickTex(){
+  const cv=document.createElement('canvas'); cv.width=256; cv.height=128;
+  const ctx=cv.getContext('2d');
+  ctx.fillStyle='#4a2a1a'; ctx.fillRect(0,0,256,128);
+  ctx.fillStyle='#8a4a2a';
+  const bw=48,bh=20,mortar=4;
+  for(let row=0;row<8;row++){
+    const offset=(row%2)*26;
+    for(let col=-1;col<8;col++){
+      const x=col*bw+offset+mortar/2;
+      const y=row*bh+mortar/2;
+      const r=190+Math.floor(Math.random()*30);
+      const g=80+Math.floor(Math.random()*20);
+      const b=40+Math.floor(Math.random()*20);
+      ctx.fillStyle=`rgb(${r},${g},${b})`;
+      ctx.fillRect(x,y,bw-mortar,bh-mortar);
     }
   }
-  </script>
-</head>
-
-<body>
-
-<canvas id="c"></canvas>
-
-<!-- UI -->
-<div id="topbar">
-  <div class="panel">
-    <div class="title">Digital Flea Market</div>
-    <div class="subtitle">Walk the aisle • Explore booths</div>
-  </div>
-  <button class="btn" id="resetBtn">Reset</button>
-</div>
-
-<div id="leftPanel" class="panel">
-  <h3>Search Vendors</h3>
-  <input id="search" placeholder="Search (e.g. pottery, jewelry)" />
-</div>
-
-<div id="minimapFrame"></div>
-
-<div id="takeControl">
-  <div class="panel">
-    <h2>Welcome</h2>
-    <p>You are entering the digital flea market aisle.</p>
-    <button class="btn" id="takeControlBtn">Take Control</button>
-  </div>
-</div>
-
-<div id="hint">
-  WASD to move • Mouse to look
-</div>
-
-<script type="module">
-import * as THREE from "three";
-import { PointerLockControls } from "three/addons/controls/PointerLockControls.js";
-
-/* ---------- BASIC FLAGS ---------- */
-let isPlaying = false;
-
-/* ---------- RENDERER ---------- */
-const canvas = document.getElementById("c");
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(window.devicePixelRatio);
-
-/* ---------- SCENE ---------- */
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87ceeb);
-
-/* ---------- CAMERA ---------- */
-const camera = new THREE.PerspectiveCamera(
-  70,
-  window.innerWidth / window.innerHeight,
-  0.1,
-  500
-);
-camera.position.set(0, 1.7, 8);
-
-/* ---------- CONTROLS ---------- */
-const controls = new PointerLockControls(camera, document.body);
-scene.add(controls.getObject());
-
-/* ---------- LIGHTS ---------- */
-scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-const sun = new THREE.DirectionalLight(0xffffff, 0.8);
-sun.position.set(10, 20, 10);
-scene.add(sun);
-
-/* ---------- GROUND ---------- */
-const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(200, 200),
-  new THREE.MeshStandardMaterial({ color: 0x6fbf73 })
-);
-ground.rotation.x = -Math.PI / 2;
-ground.position.z = -60;
-scene.add(ground);
-
-/* ---------- AISLE ---------- */
-const aisle = new THREE.Mesh(
-  new THREE.PlaneGeometry(5, 120),
-  new THREE.MeshStandardMaterial({ color: 0xc9b08a })
-);
-aisle.rotation.x = -Math.PI / 2;
-aisle.position.z = -60;
-aisle.position.y = 0.01;
-scene.add(aisle);
-
-/* ---------- BOOTHS ---------- */
-function addBooth(x, z, color) {
-  const booth = new THREE.Mesh(
-    new THREE.BoxGeometry(2.5, 2, 2),
-    new THREE.MeshStandardMaterial({ color })
-  );
-  booth.position.set(x, 1, z);
-  scene.add(booth);
+  const t=new THREE.CanvasTexture(cv);
+  t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(4,3);
+  return t;
 }
 
-for (let i = 0; i < 6; i++) {
-  addBooth(-8, -10 - i * 12, 0xffd56a);
-  addBooth( 8, -10 - i * 12, 0xaad7ff);
+// ─── Materials ────────────────────────────────────────────────────────────────
+const floorMat = new THREE.MeshStandardMaterial({map:makeCheckerTex('#3a3028','#2a2018'),roughness:.9,metalness:.05});
+const wallMat  = new THREE.MeshStandardMaterial({map:makeBrickTex(),roughness:.85,metalness:.02});
+const ceilMat  = new THREE.MeshStandardMaterial({color:0x2a2018,roughness:.9});
+const woodMat  = new THREE.MeshStandardMaterial({map:makeWoodTex(),roughness:.8,metalness:.05});
+const concMat  = new THREE.MeshStandardMaterial({map:makeConcreteTex(),roughness:.95});
+
+// ─── Hall geometry ────────────────────────────────────────────────────────────
+const HALL_W=24, HALL_H=7, HALL_D=60;
+
+// Floor
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(HALL_W,HALL_D), floorMat);
+floor.rotation.x=-Math.PI/2; floor.receiveShadow=true;
+scene.add(floor);
+
+// Ceiling
+const ceil=new THREE.Mesh(new THREE.PlaneGeometry(HALL_W,HALL_D), ceilMat);
+ceil.rotation.x=Math.PI/2; ceil.position.y=HALL_H; ceil.receiveShadow=true;
+scene.add(ceil);
+
+// Walls
+function addWall(w,h,d,px,py,pz,ry,mat){
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
+  m.position.set(px,py,pz); if(ry) m.rotation.y=ry;
+  m.castShadow=true; m.receiveShadow=true; scene.add(m); return m;
+}
+// Left wall
+addWall(0.5,HALL_H,HALL_D,-HALL_W/2,HALL_H/2,0,0,wallMat);
+// Right wall
+addWall(0.5,HALL_H,HALL_D, HALL_W/2,HALL_H/2,0,0,wallMat);
+// Back wall
+addWall(HALL_W,HALL_H,0.5,0,HALL_H/2,-HALL_D/2,0,wallMat);
+// Front wall (partial, open entrance)
+addWall(8,HALL_H,0.5,-8,HALL_H/2,HALL_D/2,0,wallMat);
+addWall(8,HALL_H,0.5, 8,HALL_H/2,HALL_D/2,0,wallMat);
+addWall(HALL_W,2,0.5, 0,HALL_H-1,HALL_D/2,0,wallMat);
+
+// Ceiling beams
+for(let z=-22;z<=22;z+=8){
+  const beam=new THREE.Mesh(new THREE.BoxGeometry(HALL_W,0.3,0.4),woodMat);
+  beam.position.set(0,HALL_H-0.15,z); beam.castShadow=true; scene.add(beam);
 }
 
-/* ---------- MOVEMENT ---------- */
+// ─── Lighting ─────────────────────────────────────────────────────────────────
+const ambient = new THREE.AmbientLight(0x4a3820, 0.4);
+scene.add(ambient);
+
+// Main overhead lights
+const overheads = [-20,-12,-4,4,12,20];
+overheads.forEach(z=>{
+  const light=new THREE.PointLight(0xfff8e8,1.5,20);
+  light.position.set(0,6.5,z); light.castShadow=true;
+  light.shadow.mapSize.width=512; light.shadow.mapSize.height=512;
+  scene.add(light);
+  // Fixture geometry
+  const fix=new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.3,0.3,8),
+    new THREE.MeshStandardMaterial({color:0x888888,emissive:0xfff8c0,emissiveIntensity:.5}));
+  fix.position.set(0,6.6,z); scene.add(fix);
+});
+
+// String lights along walls
+for(let side of[-9,9]){
+  for(let z=-25;z<=25;z+=2){
+    const sl=new THREE.PointLight(0xffcc44,0.3,4);
+    sl.position.set(side,5.5,z); scene.add(sl);
+    const bulb=new THREE.Mesh(new THREE.SphereGeometry(0.06,6,6),
+      new THREE.MeshStandardMaterial({color:0xffcc44,emissive:0xffaa00,emissiveIntensity:2}));
+    bulb.position.copy(sl.position); scene.add(bulb);
+  }
+}
+
+// ─── Booth geometry builder ───────────────────────────────────────────────────
+const boothObjects = []; // {booth, mesh, products:[], interiorPos, sigMesh}
+const productObjects = []; // {mesh, boothId, productIdx}
+const boothEntrances = []; // {boothId, pos, normal}
+
+function buildBooth(booth){
+  const {pos, canopyColor, tableColor, color, name} = booth;
+  const group = new THREE.Group();
+  const bw=4, bd=3.5, bh=3;
+  const cx=pos.x, cz=pos.z;
+
+  // Determine side
+  const isLeft = cx < 0;
+  const wallX = isLeft ? -HALL_W/2+0.25 : HALL_W/2-0.25;
+  const entranceX = isLeft ? cx+2.2 : cx-2.2;
+
+  // Table
+  const tMat = new THREE.MeshStandardMaterial({color:tableColor, roughness:.8,map:makeWoodTex()});
+  const table = new THREE.Mesh(new THREE.BoxGeometry(bw-0.4,0.12,1.2), tMat);
+  table.position.set(0, 0.88, isLeft ? -0.8 : 0.8);
+  table.castShadow=true; table.receiveShadow=true; group.add(table);
+
+  // Table legs
+  for(let lx of[-1.7,1.7]) for(let lz of[-0.5,0.5]){
+    const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,0.88,6),tMat);
+    leg.position.set(lx,0.44,isLeft?lz-0.8:lz+0.8);
+    leg.castShadow=true; group.add(leg);
+  }
+
+  // Canopy frame poles
+  const poleMat=new THREE.MeshStandardMaterial({color:0x888888,metalness:.7,roughness:.3});
+  for(let px of[-bw/2+0.1,bw/2-0.1]) for(let pz of[-bd/2+0.1,bd/2-0.1]){
+    const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,bh,8),poleMat);
+    pole.position.set(px,bh/2,pz); pole.castShadow=true; group.add(pole);
+  }
+
+  // Canopy fabric (top)
+  const canvMat=new THREE.MeshStandardMaterial({color:canopyColor,side:THREE.DoubleSide,roughness:.9});
+  const canopy=new THREE.Mesh(new THREE.BoxGeometry(bw+0.2,0.08,bd+0.2),canvMat);
+  canopy.position.set(0,bh+0.04,0); canopy.castShadow=true; group.add(canopy);
+
+  // Canopy front valance
+  const valance=new THREE.Mesh(new THREE.BoxGeometry(bw+0.2,0.5,0.04),canvMat);
+  valance.position.set(0,bh-0.2,isLeft?-bd/2:bd/2); group.add(valance);
+
+  // Back wall (connects to hall wall)
+  const backMat=new THREE.MeshStandardMaterial({color:color,roughness:.8});
+  const backWall=new THREE.Mesh(new THREE.BoxGeometry(bw,bh,0.08),backMat);
+  backWall.position.set(0,bh/2,isLeft?bd/2:-bd/2); backWall.castShadow=true; backWall.receiveShadow=true;
+  group.add(backWall);
+
+  // Side walls
+  for(let sx of[-bw/2,bw/2]){
+    const sw=new THREE.Mesh(new THREE.BoxGeometry(0.08,bh,bd),backMat);
+    sw.position.set(sx,bh/2,0); group.add(sw);
+  }
+
+  // Sign board
+  const signGeo=new THREE.BoxGeometry(bw-0.4,0.5,0.06);
+  const signMat=new THREE.MeshStandardMaterial({color:0x1a1006});
+  const sign=new THREE.Mesh(signGeo,signMat);
+  sign.position.set(0,bh-0.3,isLeft?-bd/2-0.04:bd/2+0.04);
+  group.add(sign);
+
+  // Sign text via canvas texture
+  function makeSignTex(txt){
+    const cv=document.createElement('canvas'); cv.width=512; cv.height=64;
+    const ctx2=cv.getContext('2d');
+    ctx2.fillStyle='#1a1006'; ctx2.fillRect(0,0,512,64);
+    ctx2.fillStyle='#f4c56a'; ctx2.font='bold 32px Segoe UI';
+    ctx2.textAlign='center'; ctx2.textBaseline='middle';
+    ctx2.fillText(txt,256,32);
+    return new THREE.CanvasTexture(cv);
+  }
+  const signFaceMat=new THREE.MeshStandardMaterial({map:makeSignTex(name),emissive:0x443300,emissiveIntensity:.3});
+  const signFace=new THREE.Mesh(new THREE.PlaneGeometry(bw-0.5,0.48),signFaceMat);
+  signFace.position.set(0,bh-0.3,isLeft?-bd/2-0.1:bd/2+0.1);
+  if(!isLeft) signFace.rotation.y=Math.PI;
+  group.add(signFace);
+
+  // Warm booth light
+  const bl=new THREE.PointLight(0xffcc88,1.2,6);
+  bl.position.set(0,bh-0.3,0); group.add(bl);
+
+  // Product display items on table
+  const prodObjs=[];
+  const tableFace = isLeft ? -0.8 : 0.8;
+  const tableY = 1.0;
+  const pxOffsets=[-1.3,0,1.3];
+  booth.products.forEach((prod,i)=>{
+    const geoms=[
+      new THREE.BoxGeometry(0.3,0.3,0.3),
+      new THREE.CylinderGeometry(0.12,0.12,0.35,12),
+      new THREE.SphereGeometry(0.14,10,10),
+    ];
+    const pMat=new THREE.MeshStandardMaterial({
+      color: [0xffaa44,0x88ccff,0xffddaa,0xcc88ff,0xaaffaa,0xff8888][i%6],
+      roughness:.6, metalness:.1, emissive:[0x443300,0x003344,0x443322][i%3], emissiveIntensity:.1
+    });
+    const pm=new THREE.Mesh(geoms[i%3],pMat);
+    pm.position.set(pxOffsets[i],tableY,tableFace);
+    pm.castShadow=true;
+    pm.userData = {type:'product', boothId:booth.id, productIdx:i};
+    group.add(pm);
+    prodObjs.push(pm);
+    productObjects.push({mesh:pm, boothId:booth.id, productIdx:i});
+  });
+
+  group.position.set(cx, 0, cz);
+  scene.add(group);
+
+  const worldEntranceX = isLeft ? cx+2.5 : cx-2.5;
+  boothEntrances.push({boothId:booth.id, pos:new THREE.Vector3(worldEntranceX,1.7,cz), isLeft});
+  boothObjects.push({booth, group, products:prodObjs,
+    interiorPos:new THREE.Vector3(cx+(isLeft?1.5:-1.5),1.7,cz) });
+}
+
+BOOTHS.forEach(buildBooth);
+
+// ─── Collision helpers ────────────────────────────────────────────────────────
+// Simple AABB boundaries
+const hallBounds = {minX:-HALL_W/2+0.5, maxX:HALL_W/2-0.5, minZ:-HALL_D/2+0.5, maxZ:HALL_D/2-0.5};
+
+function clampToHall(pos){
+  pos.x = Math.max(hallBounds.minX, Math.min(hallBounds.maxX, pos.x));
+  pos.z = Math.max(hallBounds.minZ, Math.min(hallBounds.maxZ, pos.z));
+}
+
+// Booth bounding boxes (for blocking player outside)
+const boothAABBs=[]; // {minX,maxX,minZ,maxZ,boothId}
+BOOTHS.forEach(b=>{
+  const isLeft=b.pos.x<0;
+  const bw=4,bd=3.5;
+  const minX=b.pos.x-bw/2, maxX=b.pos.x+bw/2;
+  const minZ=b.pos.z-bd/2, maxZ=b.pos.z+bd/2;
+  boothAABBs.push({minX,maxX,minZ,maxZ,boothId:b.id, isLeft});
+});
+
+function collideBooth(newPos, boothId){
+  // If player is in this booth, allow movement inside
+  if(player.inBooth===boothId) return false;
+  for(const bb of boothAABBs){
+    if(bb.boothId===boothId) continue;
+    // Only block from outside — leave entrance open
+    const margin=0.3;
+    if(newPos.x>bb.minX-margin && newPos.x<bb.maxX+margin &&
+       newPos.z>bb.minZ-margin && newPos.z<bb.maxZ+margin){
+      // Check if near entrance (opening on aisle side)
+      const entrX = bb.isLeft ? bb.maxX : bb.minX;
+      if(Math.abs(newPos.x-entrX)<1.2 && newPos.z>bb.minZ && newPos.z<bb.maxZ) return false;
+      return true;
+    }
+  }
+  return false;
+}
+
+// ─── Intro overlay ────────────────────────────────────────────────────────────
+let introGone = false;
+const introEl = document.getElementById('intro');
+setTimeout(()=>{
+  introEl.style.opacity='0';
+  setTimeout(()=>{
+    introEl.style.display='none';
+    introGone=true;
+    plBanner.style.display='block';
+  },1000);
+},6000);
+
+// ─── Raycasting (hover/click products) ───────────────────────────────────────
+const raycaster = new THREE.Raycaster();
+const screenCenter = new THREE.Vector2(0,0);
+const promptEl = document.getElementById('prompt');
+let hoveredObj = null;
+let nearBooth = null;
+
+// Modal
+const modal = document.getElementById('modal');
+document.getElementById('modalClose').addEventListener('click',()=>modal.classList.remove('open'));
+modal.addEventListener('click',e=>{ if(e.target===modal) modal.classList.remove('open'); });
+
+function openProductModal(boothId, prodIdx){
+  const booth = BOOTHS[boothId];
+  const prod = booth.products[prodIdx];
+  document.getElementById('mTitle').textContent=prod.name;
+  document.getElementById('mPrice').textContent=prod.price;
+  document.getElementById('mDesc').textContent=prod.desc;
+  document.getElementById('mBuy').href=prod.buy;
+  document.getElementById('mVisit').href=prod.visit;
+  modal.classList.add('open');
+}
+
+canvas.addEventListener('click',e=>{
+  if(!plLocked || !introGone) return;
+  if(hoveredObj && hoveredObj.userData.type==='product'){
+    openProductModal(hoveredObj.userData.boothId, hoveredObj.userData.productIdx);
+  }
+});
+
+// ─── E / Q booth enter/exit ───────────────────────────────────────────────────
+document.addEventListener('keydown', e=>{
+  if(e.code==='KeyE' && nearBooth!==null && player.inBooth===null){
+    const bo=boothObjects.find(b=>b.booth.id===nearBooth);
+    if(bo){ player.inBooth=nearBooth; camera.position.copy(bo.interiorPos); }
+  }
+  if(e.code==='KeyQ' && player.inBooth!==null){
+    const entrance=boothEntrances.find(b=>b.boothId===player.inBooth);
+    if(entrance){ camera.position.copy(entrance.pos); }
+    player.inBooth=null;
+  }
+});
+
+// ─── Movement ─────────────────────────────────────────────────────────────────
 const velocity = new THREE.Vector3();
-const direction = new THREE.Vector3();
-const move = { f: false, b: false, l: false, r: false };
-
-document.addEventListener("keydown", e => {
-  if (!isPlaying) return;
-  if (e.code === "KeyW") move.f = true;
-  if (e.code === "KeyS") move.b = true;
-  if (e.code === "KeyA") move.l = true;
-  if (e.code === "KeyD") move.r = true;
-});
-
-document.addEventListener("keyup", e => {
-  if (e.code === "KeyW") move.f = false;
-  if (e.code === "KeyS") move.b = false;
-  if (e.code === "KeyA") move.l = false;
-  if (e.code === "KeyD") move.r = false;
-});
-
-/* ---------- TAKE CONTROL ---------- */
-document.getElementById("takeControlBtn").onclick = () => {
-  document.getElementById("takeControl").style.display = "none";
-  isPlaying = true;
-  controls.lock();
-};
-
-/* ---------- LOOP ---------- */
+const moveDir = new THREE.Vector3();
 const clock = new THREE.Clock();
 
-function animate() {
-  requestAnimationFrame(animate);
-  const dt = clock.getDelta();
+function updateMovement(dt){
+  const speed = keys['ShiftLeft']||keys['ShiftRight'] ? 8 : 4;
+  moveDir.set(0,0,0);
+  if(keys['KeyW']||keys['ArrowUp'])    moveDir.z-=1;
+  if(keys['KeyS']||keys['ArrowDown'])  moveDir.z+=1;
+  if(keys['KeyA']||keys['ArrowLeft'])  moveDir.x-=1;
+  if(keys['KeyD']||keys['ArrowRight']) moveDir.x+=1;
+  moveDir.normalize();
 
-  if (isPlaying) {
-    velocity.z -= velocity.z * 10 * dt;
-    velocity.x -= velocity.x * 10 * dt;
+  // Apply yaw rotation to moveDir
+  const yawQ = new THREE.Quaternion();
+  yawQ.setFromAxisAngle(new THREE.Vector3(0,1,0), player.yaw);
+  moveDir.applyQuaternion(yawQ);
 
-    direction.z = Number(move.f) - Number(move.b);
-    direction.x = Number(move.r) - Number(move.l);
-    direction.normalize();
+  const newPos = camera.position.clone().addScaledVector(moveDir, speed*dt);
+  newPos.y = camera.position.y; // no gravity for now
 
-    const speed = 10;
-    if (move.f || move.b) velocity.z -= direction.z * speed * dt;
-    if (move.l || move.r) velocity.x -= direction.x * speed * dt;
+  // Clamp to hall
+  clampToHall(newPos);
 
-    controls.moveRight(-velocity.x * dt);
-    controls.moveForward(-velocity.z * dt);
+  // Booth collision
+  let blocked=false;
+  for(const bb of boothAABBs){
+    if(player.inBooth===bb.boothId) continue;
+    const m=0.35;
+    if(newPos.x>bb.minX-m && newPos.x<bb.maxX+m && newPos.z>bb.minZ-m && newPos.z<bb.maxZ+m){
+      const entrX = bb.isLeft ? bb.maxX+0.1 : bb.minX-0.1;
+      const inAisleX = bb.isLeft ? newPos.x>entrX-0.5 : newPos.x<entrX+0.5;
+      if(!(inAisleX && newPos.z>bb.minZ && newPos.z<bb.maxZ)){
+        blocked=true; break;
+      }
+    }
   }
-
-  renderer.render(scene, camera);
+  if(!blocked) camera.position.copy(newPos);
+  camera.rotation.set(player.pitch, player.yaw, 0);
 }
 
-animate();
+// ─── Minimap ──────────────────────────────────────────────────────────────────
+const mmCanvas = document.getElementById('minimapCanvas');
+const mmCtx = mmCanvas.getContext('2d');
+const MM=136;
+const SCALE=MM/(HALL_W+2); // pixels per world unit
 
-window.addEventListener("resize", () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
+function worldToMM(x,z){
+  return {
+    mx: (x + HALL_W/2) * SCALE + (MM - HALL_W*SCALE)/2,
+    my: (z + HALL_D/2) * (MM/HALL_D)
+  };
+}
+
+function drawMinimap(){
+  mmCtx.clearRect(0,0,MM,MM);
+  // Background
+  mmCtx.fillStyle='#1a1008'; mmCtx.fillRect(0,0,MM,MM);
+  // Hall outline
+  const hx=worldToMM(-HALL_W/2,-HALL_D/2);
+  const hw=HALL_W*SCALE, hh=HALL_D*(MM/HALL_D);
+  mmCtx.strokeStyle='#9a6c2a'; mmCtx.lineWidth=1;
+  mmCtx.strokeRect(hx.mx,hx.my,hw,hh);
+  // Aisle
+  const ax=worldToMM(-1,-HALL_D/2); const ax2=worldToMM(1,HALL_D/2);
+  mmCtx.fillStyle='rgba(255,220,100,0.05)'; mmCtx.fillRect(ax.mx,ax.my,ax2.mx-ax.mx,hh);
+
+  // Booths
+  BOOTHS.forEach(b=>{
+    const p=worldToMM(b.pos.x-2,b.pos.z-1.75);
+    const bw2=4*SCALE, bd2=3.5*(MM/HALL_D);
+    const cc='#'+b.canopyColor.toString(16).padStart(6,'0');
+    mmCtx.fillStyle=cc+'aa';
+    mmCtx.fillRect(p.mx,p.my,bw2,bd2);
+    mmCtx.fillStyle='#f4c56a';
+    mmCtx.font='5px sans-serif'; mmCtx.textAlign='center';
+    const lp=worldToMM(b.pos.x,b.pos.z);
+    mmCtx.fillText(b.name.split(' ')[0],lp.mx,lp.my);
+  });
+
+  // Player
+  const pp=worldToMM(camera.position.x,camera.position.z);
+  mmCtx.fillStyle='#00ffcc';
+  mmCtx.beginPath(); mmCtx.arc(pp.mx,pp.my,3,0,Math.PI*2); mmCtx.fill();
+  // Direction arrow
+  const angle=player.yaw;
+  const dx=Math.sin(angle)*8, dz=Math.cos(angle)*8;
+  mmCtx.strokeStyle='#00ffcc'; mmCtx.lineWidth=1.5;
+  mmCtx.beginPath(); mmCtx.moveTo(pp.mx,pp.my);
+  mmCtx.lineTo(pp.mx+dx*SCALE*0.4,pp.my+dz*(MM/HALL_D)*0.4); mmCtx.stroke();
+}
+
+// ─── Search & filter panel ────────────────────────────────────────────────────
+let activeCategory='all';
+let searchQuery='';
+
+function renderResults(){
+  const res=document.getElementById('results');
+  const filtered=BOOTHS.filter(b=>{
+    const matchCat = activeCategory==='all' || b.category===activeCategory;
+    const matchQ = !searchQuery || b.name.toLowerCase().includes(searchQuery) ||
+      b.category.toLowerCase().includes(searchQuery) ||
+      b.products.some(p=>p.name.toLowerCase().includes(searchQuery));
+    return matchCat && matchQ;
+  });
+  res.innerHTML=filtered.map(b=>
+    `<div class="rItem" data-id="${b.id}">🏪 ${b.name}<br><span style="color:#888;font-size:.68rem">${b.category}</span></div>`
+  ).join('');
+  res.querySelectorAll('.rItem').forEach(el=>{
+    el.addEventListener('click',()=>{
+      const b=BOOTHS.find(x=>x.id===+el.dataset.id);
+      if(b){
+        const entrance=boothEntrances.find(x=>x.boothId===b.id);
+        if(entrance){ camera.position.copy(entrance.pos); player.inBooth=null; }
+      }
+    });
+  });
+}
+
+document.querySelectorAll('.chip').forEach(chip=>{
+  chip.addEventListener('click',()=>{
+    document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+    chip.classList.add('active');
+    activeCategory=chip.dataset.cat;
+    renderResults();
+  });
 });
-</script>
+document.getElementById('searchBox').addEventListener('input',e=>{
+  searchQuery=e.target.value.trim().toLowerCase();
+  renderResults();
+});
+// Set "All" active by default
+document.querySelector('.chip[data-cat="all"]').classList.add('active');
+renderResults();
 
+// ─── Main loop ────────────────────────────────────────────────────────────────
+function animate(){
+  requestAnimationFrame(animate);
+  const dt=clock.getDelta();
+  updateMovement(dt);
+
+  // Raycasting for hover
+  raycaster.setFromCamera(screenCenter, camera);
+  const productMeshes=productObjects.map(p=>p.mesh);
+  const intersects=raycaster.intersectObjects(productMeshes);
+  if(intersects.length>0 && player.inBooth!==null){
+    hoveredObj=intersects[0].object;
+    promptEl.style.display='block';
+    const p=BOOTHS[hoveredObj.userData.boothId].products[hoveredObj.userData.productIdx];
+    promptEl.textContent=`🖱 Click: ${p.name} — ${p.price}`;
+    document.body.style.cursor='pointer';
+  } else {
+    hoveredObj=null;
+    promptEl.style.display='none';
+    document.body.style.cursor='default';
+  }
+
+  // Check near booth entrance
+  nearBooth=null;
+  let nearDist=2.5;
+  boothEntrances.forEach(ent=>{
+    const d=camera.position.distanceTo(ent.pos);
+    if(d<nearDist){ nearDist=d; nearBooth=ent.boothId; }
+  });
+  if(nearBooth!==null && player.inBooth===null){
+    promptEl.style.display='block';
+    promptEl.textContent=`Press E to enter ${BOOTHS[nearBooth].name}`;
+  } else if(player.inBooth!==null && hoveredObj===null){
+    promptEl.style.display='block';
+    promptEl.textContent='Press Q to exit booth';
+  }
+
+  // Gentle product bob
+  productObjects.forEach((po,i)=>{
+    po.mesh.rotation.y += dt*0.5;
+    po.mesh.position.y = po.mesh.position.y + Math.sin(Date.now()*0.002+i)*0.0003;
+  });
+
+  drawMinimap();
+  renderer.render(scene,camera);
+}
+animate();
+</script>
 </body>
 </html>
