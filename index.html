@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Digital Flea Market</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <style>
+    :root {
+      --ui-radius: 14px;
+      --ui-padding: 12px;
+      --ui-bg: rgba(255,255,255,0.88);
+    }
+
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      background: #87ceeb;
+    }
+
+    canvas {
+      display: block;
+    }
+
+    /* ---------- TOP BAR ---------- */
+    #topbar {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      right: 12px;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      z-index: 10;
+      pointer-events: auto;
+    }
+
+    .panel {
+      background: var(--ui-bg);
+      backdrop-filter: blur(8px);
+      border-radius: var(--ui-radius);
+      padding: var(--ui-padding);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+
+    .title {
+      font-weight: 900;
+      font-size: 16px;
+    }
+
+    .subtitle {
+      font-size: 12px;
+      opacity: 0.75;
+    }
+
+    .btn {
+      border: none;
+      border-radius: 10px;
+      padding: 10px 14px;
+      background: #111;
+      color: white;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    /* ---------- LEFT PANEL ---------- */
+    #leftPanel {
+      position: fixed;
+      top: 84px;
+      left: 12px;
+      width: 320px;
+      z-index: 10;
+      pointer-events: auto;
+    }
+
+    #leftPanel h3 {
+      margin: 0 0 8px;
+      font-size: 14px;
+    }
+
+    #search {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid rgba(0,0,0,0.15);
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+
+    /* ---------- MINIMAP ---------- */
+    #minimapFrame {
+      position: fixed;
+      right: 14px;
+      top: 84px;
+      width: 220px;
+      height: 220px;
+      border-radius: 14px;
+      border: 2px solid rgba(255,255,255,0.9);
+      z-index: 5;
+      pointer-events: none;
+    }
+
+    /* ---------- OVERLAY ---------- */
+    #takeControl {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 20;
+      pointer-events: auto;
+    }
+
+    #takeControl .panel {
+      width: 420px;
+      text-align: center;
+    }
+
+    /* ---------- HINT ---------- */
+    #hint {
+      position: fixed;
+      left: 12px;
+      bottom: 12px;
+      background: rgba(0,0,0,0.6);
+      color: white;
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-size: 14px;
+      z-index: 10;
+    }
+  </style>
+
+  <!-- IMPORT MAP (simple, reliable) -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+
+<body>
+
+<canvas id="c"></canvas>
+
+<!-- UI -->
+<div id="topbar">
+  <div class="panel">
+    <div class="title">Digital Flea Market</div>
+    <div class="subtitle">Walk the aisle • Explore booths</div>
+  </div>
+  <button class="btn" id="resetBtn">Reset</button>
+</div>
+
+<div id="leftPanel" class="panel">
+  <h3>Search Vendors</h3>
+  <input id="search" placeholder="Search (e.g. pottery, jewelry)" />
+</div>
+
+<div id="minimapFrame"></div>
+
+<div id="takeControl">
+  <div class="panel">
+    <h2>Welcome</h2>
+    <p>You are entering the digital flea market aisle.</p>
+    <button class="btn" id="takeControlBtn">Take Control</button>
+  </div>
+</div>
+
+<div id="hint">
+  WASD to move • Mouse to look
+</div>
+
+<script type="module">
+import * as THREE from "three";
+import { PointerLockControls } from "three/addons/controls/PointerLockControls.js";
+
+/* ---------- BASIC FLAGS ---------- */
+let isPlaying = false;
+
+/* ---------- RENDERER ---------- */
+const canvas = document.getElementById("c");
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
+
+/* ---------- SCENE ---------- */
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87ceeb);
+
+/* ---------- CAMERA ---------- */
+const camera = new THREE.PerspectiveCamera(
+  70,
+  window.innerWidth / window.innerHeight,
+  0.1,
+  500
+);
+camera.position.set(0, 1.7, 8);
+
+/* ---------- CONTROLS ---------- */
+const controls = new PointerLockControls(camera, document.body);
+scene.add(controls.getObject());
+
+/* ---------- LIGHTS ---------- */
+scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+sun.position.set(10, 20, 10);
+scene.add(sun);
+
+/* ---------- GROUND ---------- */
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(200, 200),
+  new THREE.MeshStandardMaterial({ color: 0x6fbf73 })
+);
+ground.rotation.x = -Math.PI / 2;
+ground.position.z = -60;
+scene.add(ground);
+
+/* ---------- AISLE ---------- */
+const aisle = new THREE.Mesh(
+  new THREE.PlaneGeometry(5, 120),
+  new THREE.MeshStandardMaterial({ color: 0xc9b08a })
+);
+aisle.rotation.x = -Math.PI / 2;
+aisle.position.z = -60;
+aisle.position.y = 0.01;
+scene.add(aisle);
+
+/* ---------- BOOTHS ---------- */
+function addBooth(x, z, color) {
+  const booth = new THREE.Mesh(
+    new THREE.BoxGeometry(2.5, 2, 2),
+    new THREE.MeshStandardMaterial({ color })
+  );
+  booth.position.set(x, 1, z);
+  scene.add(booth);
+}
+
+for (let i = 0; i < 6; i++) {
+  addBooth(-8, -10 - i * 12, 0xffd56a);
+  addBooth( 8, -10 - i * 12, 0xaad7ff);
+}
+
+/* ---------- MOVEMENT ---------- */
+const velocity = new THREE.Vector3();
+const direction = new THREE.Vector3();
+const move = { f: false, b: false, l: false, r: false };
+
+document.addEventListener("keydown", e => {
+  if (!isPlaying) return;
+  if (e.code === "KeyW") move.f = true;
+  if (e.code === "KeyS") move.b = true;
+  if (e.code === "KeyA") move.l = true;
+  if (e.code === "KeyD") move.r = true;
+});
+
+document.addEventListener("keyup", e => {
+  if (e.code === "KeyW") move.f = false;
+  if (e.code === "KeyS") move.b = false;
+  if (e.code === "KeyA") move.l = false;
+  if (e.code === "KeyD") move.r = false;
+});
+
+/* ---------- TAKE CONTROL ---------- */
+document.getElementById("takeControlBtn").onclick = () => {
+  document.getElementById("takeControl").style.display = "none";
+  isPlaying = true;
+  controls.lock();
+};
+
+/* ---------- LOOP ---------- */
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = clock.getDelta();
+
+  if (isPlaying) {
+    velocity.z -= velocity.z * 10 * dt;
+    velocity.x -= velocity.x * 10 * dt;
+
+    direction.z = Number(move.f) - Number(move.b);
+    direction.x = Number(move.r) - Number(move.l);
+    direction.normalize();
+
+    const speed = 10;
+    if (move.f || move.b) velocity.z -= direction.z * speed * dt;
+    if (move.l || move.r) velocity.x -= direction.x * speed * dt;
+
+    controls.moveRight(-velocity.x * dt);
+    controls.moveForward(-velocity.z * dt);
+  }
+
+  renderer.render(scene, camera);
+}
+
+animate();
+
+window.addEventListener("resize", () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+
+</body>
+</html>
