@@ -18,7 +18,7 @@
     html, body { margin:0; height:100%; overflow:hidden; font-family: var(--font); background:#87ceeb; }
     canvas { display:block; }
 
-    /* Debug/error overlay */
+    /* Error overlay (if anything breaks, you'll see it) */
     #errorOverlay{
       position:fixed; inset:0;
       display:none;
@@ -65,10 +65,7 @@
       font-weight: 800;
       white-space:nowrap;
     }
-    .btn.primary{
-      background:#111; color:#fff;
-      box-shadow: 0 12px 30px rgba(0,0,0,0.25);
-    }
+    .btn.primary{ background:#111; color:#fff; }
 
     /* Left panel */
     #leftPanel{
@@ -230,6 +227,23 @@
     #takeControl h2{ margin:0; }
     #takeControl p{ margin:0; opacity:0.85; line-height:1.25rem; }
 
+    /* Relock banner when ESC releases */
+    #relockBanner{
+      position:fixed;
+      left: 50%;
+      top: 14px;
+      transform: translateX(-50%);
+      z-index: 70;
+      pointer-events:auto;
+      display:none;
+      background: rgba(0,0,0,0.65);
+      color:#fff;
+      padding: 10px 12px;
+      border-radius: 999px;
+      cursor:pointer;
+      font-weight: 800;
+    }
+
     /* Booth modal */
     #boothOverlay{
       position:fixed; inset:0;
@@ -321,15 +335,6 @@
       font-weight: 900;
     }
   </style>
-
-  <script type="importmap">
-  {
-    "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
-      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
-    }
-  }
-  </script>
 </head>
 
 <body>
@@ -338,18 +343,20 @@
     <pre id="errorText"></pre>
   </div>
 
+  <div id="relockBanner">Click to Resume Look</div>
+
   <canvas id="c"></canvas>
 
   <div id="topbar">
     <div class="card">
       <div class="title">Redmond Digital Flea Market</div>
-      <div class="sub">Marymoor Park‑inspired outdoor market • 3D walkthrough</div>
+      <div class="sub">Park‑inspired outdoor market • 3D walkthrough</div>
     </div>
     <div style="display:flex; gap:10px; align-items:center;">
       <button class="btn" id="vendorBtn">Vendor Submit</button>
       <button class="btn" id="soundBtn">Sound: Off</button>
       <button class="btn" id="helpBtn">Help</button>
-      <button class="btn" id="resetBtn">Reset</button>
+      <button class="btn" id="resetBtn">Reset (R)</button>
     </div>
   </div>
 
@@ -370,16 +377,16 @@
   <div id="actionPrompt"></div>
 
   <div id="hint">
-    <b>WASD</b> move • <b>Shift</b> sprint • <b>R</b> reset • <b>ESC</b> release mouse • click the scene to re‑capture mouse • <b>E</b> enter booth • <b>Q</b> exit booth
+    <b>WASD</b> move • <b>Shift</b> sprint • <b>R</b> reset • <b>ESC</b> release mouse • click to re‑capture • <b>E</b> enter booth • <b>Q</b> exit booth
   </div>
 
   <div id="takeControl">
     <div class="panel">
       <h2>Welcome — you’re entering the market</h2>
-      <p>The camera starts walking forward. Click <b>Take Control</b> to enable mouse‑look, faster movement, mini‑map tracking, and sound.</p>
+      <p>Click <b>Take Control</b> to enable mouse‑look, faster movement, mini‑map tracking, and sound.</p>
       <button class="btn primary" id="takeControlBtn">Take Control</button>
       <p style="font-size:12px; opacity:0.75;">
-        Note: audio and pointer lock require a click in the browser.
+        (Browsers require a click to start audio and pointer lock.)
       </p>
     </div>
   </div>
@@ -411,7 +418,7 @@
         <button class="btn" id="closeProduct">Close</button>
       </div>
       <div class="actions">
-        <a class="primaryLink" id="pBuy" href="#" target="_blank" rel="noopener noreferrer">Buy / Visit</a>
+        <a class="primaryLink" id="pBuy" target="_blank" rel="noopener noreferrer">Buy / Visit</a>
         <button class="btn" id="pOpenBooth">Open Booth Info</button>
       </div>
       <div style="margin-top:10px; font-size:12px; opacity:0.7;">
@@ -421,18 +428,19 @@
   </div>
 
 <script type="module">
-  // --- On-screen errors (so if anything breaks, we SEE it) ---
+  // Error overlay
   const errorOverlay = document.getElementById("errorOverlay");
   const errorText = document.getElementById("errorText");
   function showError(msg){ errorText.textContent = msg; errorOverlay.style.display = "block"; }
   window.addEventListener("error", (e)=>showError(String(e.error?.stack || e.message || e)));
   window.addEventListener("unhandledrejection", (e)=>showError(String(e.reason?.stack || e.reason || e)));
 
-  import * as THREE from "three";
-  import { PointerLockControls } from "three/addons/controls/PointerLockControls.js";
+  // DIRECT URL IMPORTS (NO import maps) — this is the reliability fix
+  import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js";
+  import { PointerLockControls } from "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/controls/PointerLockControls.js";
 
   // -------------------------
-  // Data + filters
+  // Categories + booths (includes Pottery)
   // -------------------------
   const CATEGORIES = [
     { key:"Jewelry",  color:"#e6ddff" },
@@ -444,7 +452,6 @@
   ];
   const catColor = Object.fromEntries(CATEGORIES.map(c => [c.key, c.color]));
 
-  // Example booths (add more anytime)
   const BOOTHS = [
     {
       id:"eastsidepottery",
@@ -462,7 +469,7 @@
     {
       id:"vala",
       name:"VALA Art Center",
-      desc:"Local arts nonprofit in Redmond with exhibits and events.",
+      desc:"Local arts nonprofit with exhibits and events.",
       categories:["Art"],
       links:[ {label:"Visit Website", url:"https://www.valaeastside.org/"} ],
       products:[
@@ -471,32 +478,6 @@
         { id:"p3", name:"Donate", price:"Optional", url:"https://www.valaeastside.org/" }
       ],
       side:"left", z:-22
-    },
-    {
-      id:"paintaway",
-      name:"Paint Away!",
-      desc:"Ceramics painting & glass fusing studio.",
-      categories:["Ceramics","Gifts"],
-      links:[ {label:"Visit Website", url:"https://paintawaynow.com/"} ],
-      products:[
-        { id:"p1", name:"Pottery-to-go Kit", price:"See site", url:"https://paintawaynow.com/" },
-        { id:"p2", name:"Glass Fusing", price:"See site", url:"https://paintawaynow.com/" },
-        { id:"p3", name:"Gift Certificate", price:"See site", url:"https://paintawaynow.com/" }
-      ],
-      side:"right", z:-46
-    },
-    {
-      id:"utopia",
-      name:"Utopia (Jewelry & Gifts)",
-      desc:"Jewelry & gift ideas at Redmond Town Center.",
-      categories:["Jewelry","Gifts"],
-      links:[ {label:"Directory Listing", url:"https://redmondtowncenter.com/directory/utopia"} ],
-      products:[
-        { id:"p1", name:"Gem Jewelry", price:"See site", url:"https://redmondtowncenter.com/directory/utopia" },
-        { id:"p2", name:"Gift Ideas", price:"See site", url:"https://redmondtowncenter.com/directory/utopia" },
-        { id:"p3", name:"Store Info", price:"See site", url:"https://redmondtowncenter.com/directory/utopia" }
-      ],
-      side:"left", z:-58
     },
     {
       id:"brugge",
@@ -518,13 +499,15 @@
     return new THREE.Color(catColor[key] || "#ffffff").getHex();
   }
 
-  // UI wiring
+  // -------------------------
+  // UI filters / results
+  // -------------------------
   const chipsEl = document.getElementById("categoryChips");
   const resultsEl = document.getElementById("results");
   const matchCountEl = document.getElementById("matchCount");
   const searchEl = document.getElementById("search");
 
-  const activeCats = new Set(CATEGORIES.map(c=>c.key)); // all on
+  const activeCats = new Set(CATEGORIES.map(c=>c.key));
   let searchTerm = "";
 
   function renderChips(){
@@ -544,18 +527,10 @@
   }
 
   function boothMatches(booth){
-    // categories
-    const cats = booth.categories || [];
-    const catOK = cats.some(c=>activeCats.has(c));
+    const catOK = (booth.categories||[]).some(c=>activeCats.has(c));
     if (!catOK) return false;
-
-    // search
     if (!searchTerm) return true;
-    const hay = [
-      booth.name, booth.desc,
-      ...(booth.categories||[]),
-      ...((booth.products||[]).map(p=>p.name))
-    ].join(" ").toLowerCase();
+    const hay = [booth.name, booth.desc, ...(booth.categories||[]), ...((booth.products||[]).map(p=>p.name))].join(" ").toLowerCase();
     return hay.includes(searchTerm);
   }
 
@@ -565,7 +540,7 @@
   });
 
   // -------------------------
-  // Three.js scene
+  // Three.js setup
   // -------------------------
   const canvas = document.getElementById("c");
   const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
@@ -576,12 +551,13 @@
 
   const scene = new THREE.Scene();
   scene.fog = new THREE.Fog(0x87ceeb, 30, 240);
+  scene.background = new THREE.Color(0x87ceeb);
 
-  // Simple sky gradient sphere
-  const skyGeo = new THREE.SphereGeometry(500, 32, 16);
-  const skyMat = new THREE.MeshBasicMaterial({ color: 0x87ceeb, side: THREE.BackSide });
-  const sky = new THREE.Mesh(skyGeo, skyMat);
-  scene.add(sky);
+  const camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.1, 900);
+  camera.position.set(0, 1.7, 10);
+
+  const controls = new PointerLockControls(camera, document.body);
+  scene.add(controls.getObject());
 
   // Lights
   scene.add(new THREE.AmbientLight(0xffffff, 0.55));
@@ -591,34 +567,23 @@
   sun.shadow.mapSize.set(2048, 2048);
   scene.add(sun);
 
-  // Camera + controls
-  const camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.1, 900);
-  camera.position.set(0, 1.7, 10);
-
-  const controls = new PointerLockControls(camera, document.body);
-  scene.add(controls.getObject());
-
-  // Ground textures (procedural “Marymoor Park‑inspired” map)
+  // Park-inspired ground texture (procedural)
   function makeParkTexture(){
     const c = document.createElement("canvas");
     c.width = 1024; c.height = 1024;
     const ctx = c.getContext("2d");
-
-    // grass base
     ctx.fillStyle = "#5fbf6a";
-    ctx.fillRect(0,0,c.width,c.height);
+    ctx.fillRect(0,0,1024,1024);
 
-    // noise speckles for grass
-    for(let i=0;i<120000;i++){
-      const x = Math.random()*1024;
-      const y = Math.random()*1024;
+    // grass speckle
+    for(let i=0;i<90000;i++){
+      const x = Math.random()*1024, y = Math.random()*1024;
       const g = 90 + Math.random()*60;
-      ctx.fillStyle = `rgba(${g},${180+Math.random()*40|0},${g},0.08)`;
+      ctx.fillStyle = `rgba(${g|0},${(175+Math.random()*55)|0},${g|0},0.08)`;
       ctx.fillRect(x,y,1,1);
     }
-
-    // pond shape
-    ctx.fillStyle = "rgba(70,140,200,0.9)";
+    // pond
+    ctx.fillStyle = "rgba(70,140,200,0.88)";
     ctx.beginPath();
     ctx.ellipse(720, 460, 160, 110, 0.2, 0, Math.PI*2);
     ctx.fill();
@@ -627,45 +592,33 @@
     ctx.strokeStyle = "rgba(210,190,140,0.95)";
     ctx.lineWidth = 26;
     ctx.lineCap = "round";
-
-    function path(points){
+    const path = (pts)=>{
       ctx.beginPath();
-      ctx.moveTo(points[0][0], points[0][1]);
-      for (let i=1;i<points.length;i++) ctx.lineTo(points[i][0], points[i][1]);
+      ctx.moveTo(pts[0][0], pts[0][1]);
+      for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0], pts[i][1]);
       ctx.stroke();
-    }
-    // central “aisle”
+    };
     path([[512,1020],[512,760],[512,520],[512,220],[512,30]]);
-    // side trails
     path([[512,600],[340,500],[220,360],[140,220]]);
     path([[512,520],[700,540],[860,620],[980,740]]);
 
-    // label
-    ctx.fillStyle = "rgba(0,0,0,0.65)";
-    ctx.fillRect(24,24,340,60);
-    ctx.fillStyle = "#fff";
-    ctx.font = "bold 28px system-ui";
-    ctx.fillText("Marymoor Park (inspired map)", 40, 64);
-
-    const tex = new THREE.CanvasTexture(c);
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(2.0, 2.0);
-    tex.anisotropy = 8;
-    return tex;
+    return new THREE.CanvasTexture(c);
   }
 
-  const grassTex = makeParkTexture();
+  const parkTex = makeParkTexture();
+  parkTex.wrapS = parkTex.wrapT = THREE.RepeatWrapping;
+  parkTex.repeat.set(2,2);
+  parkTex.anisotropy = 8;
 
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(320, 340),
-    new THREE.MeshStandardMaterial({ map: grassTex })
+    new THREE.MeshStandardMaterial({ map: parkTex })
   );
   ground.rotation.x = -Math.PI/2;
   ground.receiveShadow = true;
   ground.position.set(0, 0, -90);
   scene.add(ground);
 
-  // Aisle “market path” (extra visible)
   const aisle = new THREE.Mesh(
     new THREE.PlaneGeometry(6.0, 220),
     new THREE.MeshStandardMaterial({ color: 0xc9b08a })
@@ -675,7 +628,70 @@
   aisle.position.set(0, 0.02, -90);
   scene.add(aisle);
 
-  // Market entrance sign
+  // Trees
+  function addTree(x,z){
+    const trunk = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.18,0.24,2.2,12),
+      new THREE.MeshStandardMaterial({ color: 0x6d4c2f, roughness: 1 })
+    );
+    trunk.position.set(x, 1.1, z);
+    trunk.castShadow = true;
+
+    const crown = new THREE.Mesh(
+      new THREE.SphereGeometry(1.35, 16, 12),
+      new THREE.MeshStandardMaterial({ color: 0x2f7d32, roughness: 1 })
+    );
+    crown.position.set(x, 2.8, z);
+    crown.castShadow = true;
+
+    scene.add(trunk, crown);
+  }
+  for(let i=0;i<30;i++){
+    const x = (Math.random()*160)-80;
+    const z = (Math.random()*220)-190;
+    if (Math.abs(x) < 14 && z < 18 && z > -190) continue;
+    addTree(x,z);
+  }
+
+  // -------------------------
+  // Minimap (rendered as 2nd viewport)
+  // This multi-viewport approach is common for minimaps. [1](https://spreecommerce.org/building-a-multi-vendor-marketplace-with-spree-commerce-and-stripe-connect/)[2](https://www.buildthatmvp.com/getting-started/stripe-connect)
+  // -------------------------
+  const minimapCam = new THREE.OrthographicCamera(-26,26,26,-26,0.1,900);
+  const marker = new THREE.Mesh(
+    new THREE.ConeGeometry(0.45, 1.1, 12),
+    new THREE.MeshStandardMaterial({ color: 0xff3333 })
+  );
+  marker.rotation.x = Math.PI;
+  scene.add(marker);
+
+  function updateMinimap(){
+    const p = controls.getObject();
+    marker.position.set(p.position.x, 0.6, p.position.z);
+    marker.rotation.y = p.rotation.y;
+    minimapCam.position.set(p.position.x, 80, p.position.z);
+    minimapCam.lookAt(p.position.x, 0, p.position.z);
+  }
+
+  // -------------------------
+  // Booths + interiors + products (more realistic tents)
+  // -------------------------
+  const boothGroup = new THREE.Group();
+  scene.add(boothGroup);
+
+  const interactive = [];
+  const boothRefs = new Map();
+  const entryDoors = [];
+  const exitDoors = [];
+
+  const outdoorColliders = [];
+  const PLAYER_RADIUS = 0.5;
+
+  const INTERIOR_ORIGIN = new THREE.Vector3(420, 0, 420);
+  const INTERIOR_SPACING = 52;
+  let insideBoothId = null;
+  let lastOutdoorPos = new THREE.Vector3(0, 1.7, 10);
+
   function makeSignTexture(text){
     const c = document.createElement("canvas");
     c.width = 512; c.height = 256;
@@ -689,60 +705,11 @@
     ctx.fillText(text, 256, 108);
     ctx.font = "600 18px system-ui";
     ctx.fillStyle = "rgba(255,255,255,0.85)";
-    ctx.fillText("Redmond, WA • Sunny Day", 256, 168);
+    ctx.fillText("Click for info", 256, 168);
     const tex = new THREE.CanvasTexture(c);
     tex.anisotropy = 8;
     return tex;
   }
-
-  const entrance = new THREE.Mesh(
-    new THREE.BoxGeometry(6, 2.2, 0.25),
-    new THREE.MeshStandardMaterial({ map: makeSignTexture("Digital Flea Market") })
-  );
-  entrance.position.set(0, 1.4, 8);
-  entrance.castShadow = true;
-  scene.add(entrance);
-
-  // Trees (more refined)
-  function addTree(x,z){
-    const trunk = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.18,0.24,2.2,12),
-      new THREE.MeshStandardMaterial({ color: 0x6d4c2f })
-    );
-    trunk.position.set(x, 1.1, z);
-    trunk.castShadow = true;
-
-    const crown = new THREE.Mesh(
-      new THREE.SphereGeometry(1.35, 16, 12),
-      new THREE.MeshStandardMaterial({ color: 0x2f7d32 })
-    );
-    crown.position.set(x, 2.8, z);
-    crown.castShadow = true;
-
-    scene.add(trunk, crown);
-  }
-  for(let i=0;i<36;i++){
-    const x = (Math.random()*160)-80;
-    const z = (Math.random()*220)-190;
-    if (Math.abs(x) < 14 && z < 18 && z > -190) continue;
-    addTree(x, z);
-  }
-
-  // -------------------------
-  // Booths + interiors + products
-  // -------------------------
-  const boothGroup = new THREE.Group();
-  scene.add(boothGroup);
-
-  const minimapIcons = new THREE.Group();
-  scene.add(minimapIcons);
-
-  // Layers: main camera sees layer 0; minimap sees layer 0 + 1
-  camera.layers.set(0);
-
-  const minimapCam = new THREE.OrthographicCamera(-24, 24, 24, -24, 0.1, 900);
-  minimapCam.layers.enable(0);
-  minimapCam.layers.enable(1);
 
   function labelSprite(text){
     const c = document.createElement("canvas");
@@ -762,29 +729,40 @@
     return spr;
   }
 
-  const boothRefs = new Map();
-  const interactive = [];
-  const entryDoors = [];
-  const exitDoors = [];
-  const outdoorColliders = [];
+  function makeFabricTexture(hex){
+    // simple striped fabric
+    const c = document.createElement("canvas");
+    c.width = 256; c.height = 256;
+    const ctx = c.getContext("2d");
+    const base = new THREE.Color(hex);
+    const light = base.clone().lerp(new THREE.Color(0xffffff), 0.35);
+    const dark  = base.clone().lerp(new THREE.Color(0x000000), 0.15);
 
-  const INTERIOR_ORIGIN = new THREE.Vector3(420, 0, 420);
-  const INTERIOR_SPACING = 52;
-  let insideBoothId = null;
-  let lastOutdoorPos = new THREE.Vector3(0, 1.7, 10);
+    ctx.fillStyle = `#${base.getHexString()}`;
+    ctx.fillRect(0,0,256,256);
 
-  const PLAYER_RADIUS = 0.5;
+    for(let x=0;x<256;x+=24){
+      ctx.fillStyle = (x/24)%2===0 ? `#${light.getHexString()}` : `#${dark.getHexString()}`;
+      ctx.fillRect(x,0,12,256);
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(2,2);
+    tex.anisotropy = 8;
+    return tex;
+  }
 
   function addBooth(booth, idx){
     const x = (booth.side === "left") ? -10 : 10;
     const z = booth.z;
     const colorHex = boothColorHex(booth);
+    const fabricTex = makeFabricTexture(colorHex);
 
     const g = new THREE.Group();
     g.position.set(x, 0, z);
 
     // Tent legs
-    const legMat = new THREE.MeshStandardMaterial({ color: 0x7a5a34 });
+    const legMat = new THREE.MeshStandardMaterial({ color: 0x7a5a34, roughness: 1 });
     const legGeo = new THREE.CylinderGeometry(0.06,0.06,1.7,10);
     for (const [lx,lz] of [[-0.95,-0.95],[0.95,-0.95],[-0.95,0.95],[0.95,0.95]]){
       const leg = new THREE.Mesh(legGeo, legMat);
@@ -796,17 +774,17 @@
     // Table
     const tableTop = new THREE.Mesh(
       new THREE.BoxGeometry(2.0, 0.12, 1.0),
-      new THREE.MeshStandardMaterial({ color: 0x8b6a42 })
+      new THREE.MeshStandardMaterial({ color: 0x8b6a42, roughness: 1 })
     );
     tableTop.position.set(0, 0.58, 0.15);
     tableTop.castShadow = true;
     tableTop.receiveShadow = true;
     g.add(tableTop);
 
-    // Canopy
+    // Canopy (fabric)
     const canopy = new THREE.Mesh(
       new THREE.ConeGeometry(1.75, 1.0, 4),
-      new THREE.MeshStandardMaterial({ color: colorHex })
+      new THREE.MeshStandardMaterial({ map: fabricTex, roughness: 0.95, metalness: 0.0 })
     );
     canopy.position.set(0, 1.85, 0);
     canopy.castShadow = true;
@@ -815,18 +793,30 @@
     // Backdrop
     const back = new THREE.Mesh(
       new THREE.BoxGeometry(2.2, 1.7, 0.14),
-      new THREE.MeshStandardMaterial({ color: 0xffffff })
+      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1 })
     );
     back.position.set(0, 0.95, -1.05);
     back.castShadow = true;
     back.receiveShadow = true;
     g.add(back);
 
+    // String lights (small emissive bulbs)
+    const bulbMat = new THREE.MeshStandardMaterial({ color: 0xfff2cc, emissive: 0xffd56a, emissiveIntensity: 1.2 });
+    for(let i=0;i<6;i++){
+      const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 10), bulbMat);
+      const t = i/5;
+      bulb.position.set(-1.2 + t*2.4, 1.75, 1.05);
+      g.add(bulb);
+
+      const point = new THREE.PointLight(0xffd56a, 0.35, 3.2);
+      point.position.copy(bulb.position);
+      g.add(point);
+    }
+
     // Sign (clickable)
-    const signTex = makeSignTexture(booth.name);
     const sign = new THREE.Mesh(
       new THREE.BoxGeometry(2.2, 0.6, 0.08),
-      new THREE.MeshStandardMaterial({ map: signTex })
+      new THREE.MeshStandardMaterial({ map: makeSignTexture(booth.name) })
     );
     sign.position.set(0, 1.45, 1.25);
     sign.castShadow = true;
@@ -837,7 +827,7 @@
     // Doorway marker
     const door = new THREE.Mesh(
       new THREE.BoxGeometry(1.5, 2.2, 0.12),
-      new THREE.MeshStandardMaterial({ color: 0x111111 })
+      new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 1 })
     );
     door.position.set(0, 1.1, 0.75);
     door.castShadow = true;
@@ -846,7 +836,7 @@
     // Mat
     const mat = new THREE.Mesh(
       new THREE.PlaneGeometry(1.8, 1.0),
-      new THREE.MeshStandardMaterial({ color: 0x2b2b2b })
+      new THREE.MeshStandardMaterial({ color: 0x2b2b2b, roughness: 1 })
     );
     mat.rotation.x = -Math.PI/2;
     mat.position.set(0, 0.02, 1.35);
@@ -855,29 +845,27 @@
 
     boothGroup.add(g);
 
-    // Entry door position (world)
+    // entry door position
     entryDoors.push({ boothId: booth.id, worldPos: new THREE.Vector3(x, 1.0, z + 1.35) });
 
-    // Collider (AABB)
+    // collider AABB
     scene.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(g).expandByScalar(PLAYER_RADIUS);
     outdoorColliders.push({ boothId: booth.id, box });
 
-    // Minimap icon + label (layer 1 only)
+    // minimap icon + label (visual only)
     const icon = new THREE.Mesh(
       new THREE.CylinderGeometry(0.5, 0.5, 0.25, 14),
       new THREE.MeshBasicMaterial({ color: colorHex })
     );
     icon.position.set(x, 0.2, z);
-    icon.layers.set(1);
-    minimapIcons.add(icon);
+    scene.add(icon);
 
     const label = labelSprite(booth.name);
     label.position.set(x, 3.0, z);
-    label.layers.set(1);
-    minimapIcons.add(label);
+    scene.add(label);
 
-    // Interior
+    // interior
     const ix = INTERIOR_ORIGIN.x + idx * INTERIOR_SPACING;
     const iz = INTERIOR_ORIGIN.z;
 
@@ -886,49 +874,38 @@
 
     const floor = new THREE.Mesh(
       new THREE.PlaneGeometry(14, 14),
-      new THREE.MeshStandardMaterial({ color: 0xeee8dd })
+      new THREE.MeshStandardMaterial({ color: 0xeee8dd, roughness: 1 })
     );
     floor.rotation.x = -Math.PI/2;
     floor.receiveShadow = true;
     interior.add(floor);
 
-    const wallMat = new THREE.MeshStandardMaterial({ color: colorHex });
+    const wallMat = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 1 });
     const wallBack = new THREE.Mesh(new THREE.BoxGeometry(14, 3.2, 0.25), wallMat);
     wallBack.position.set(0, 1.6, -7);
-    wallBack.castShadow = true; wallBack.receiveShadow = true;
+    wallBack.castShadow = true;
     interior.add(wallBack);
 
-    const wallLeft = new THREE.Mesh(new THREE.BoxGeometry(0.25, 3.2, 14), wallMat);
-    wallLeft.position.set(-7, 1.6, 0);
-    wallLeft.castShadow = true; wallLeft.receiveShadow = true;
-    interior.add(wallLeft);
-
-    const wallRight = new THREE.Mesh(new THREE.BoxGeometry(0.25, 3.2, 14), wallMat);
-    wallRight.position.set(7, 1.6, 0);
-    wallRight.castShadow = true; wallRight.receiveShadow = true;
-    interior.add(wallRight);
-
-    const warm = new THREE.PointLight(0xfff2d6, 1.25, 45);
+    const warm = new THREE.PointLight(0xfff2d6, 1.2, 45);
     warm.position.set(0, 2.8, 0);
     interior.add(warm);
 
-    // Product shelf
     const shelf = new THREE.Mesh(
       new THREE.BoxGeometry(11.5, 0.25, 1.0),
-      new THREE.MeshStandardMaterial({ color: 0x8b6a42 })
+      new THREE.MeshStandardMaterial({ color: 0x8b6a42, roughness: 1 })
     );
     shelf.position.set(0, 1.1, -2.4);
-    shelf.castShadow = true; shelf.receiveShadow = true;
+    shelf.castShadow = true;
     interior.add(shelf);
 
     const pxs = [-3.2, 0, 3.2];
     (booth.products||[]).slice(0,3).forEach((prod, i)=>{
       const item = new THREE.Mesh(
         new THREE.BoxGeometry(1.1, 0.7, 1.1),
-        new THREE.MeshStandardMaterial({ color: [0xffd56a, 0xaad7ff, 0xd6ffa5][i%3] })
+        new THREE.MeshStandardMaterial({ color: [0xffd56a, 0xaad7ff, 0xd6ffa5][i%3], roughness: 0.8 })
       );
       item.position.set(pxs[i], 1.55, -2.4);
-      item.castShadow = true; item.receiveShadow = true;
+      item.castShadow = true;
       item.userData = { type:"product", boothId: booth.id, productIndex: i };
       interior.add(item);
       interactive.push(item);
@@ -941,101 +918,47 @@
       interactive.push(tag);
     });
 
-    // Exit door
     const exitDoor = new THREE.Mesh(
       new THREE.BoxGeometry(2.2, 2.4, 0.25),
       new THREE.MeshStandardMaterial({ color: 0x111111 })
     );
     exitDoor.position.set(0, 1.2, 6.2);
-    exitDoor.castShadow = true;
     interior.add(exitDoor);
 
     exitDoors.push({ boothId: booth.id, worldPos: new THREE.Vector3(ix, 1.0, iz + 6.0) });
 
     scene.add(interior);
 
-    boothRefs.set(booth.id, { booth, outdoorGroup: g, minimapIcon: icon, minimapLabel: label, interiorGroup: interior, interiorPos:{ix, iz} });
+    boothRefs.set(booth.id, { booth, outdoorGroup: g, interiorPos:{ix, iz} });
   }
 
   BOOTHS.forEach(addBooth);
 
   // -------------------------
-  // Minimap marker (player)
-  // -------------------------
-  const marker = new THREE.Mesh(
-    new THREE.ConeGeometry(0.45, 1.1, 12),
-    new THREE.MeshStandardMaterial({ color: 0xff3333 })
-  );
-  marker.rotation.x = Math.PI;
-  marker.layers.set(1);
-  scene.add(marker);
-
-  function updateMinimap(){
-    const player = controls.getObject();
-
-    marker.position.set(player.position.x, 0.6, player.position.z);
-    marker.rotation.y = player.rotation.y;
-
-    const size = 26;
-    minimapCam.left = -size;
-    minimapCam.right = size;
-    minimapCam.top = size;
-    minimapCam.bottom = -size;
-    minimapCam.updateProjectionMatrix();
-
-    minimapCam.position.set(player.position.x, 80, player.position.z);
-    minimapCam.lookAt(player.position.x, 0, player.position.z);
-  }
-
-  // -------------------------
-  // Filtering + results list
+  // Filters apply
   // -------------------------
   function applyFilters(){
     const matches = [];
-
     for (const booth of BOOTHS){
       const ref = boothRefs.get(booth.id);
-      if (!ref) continue;
-
       const ok = boothMatches(booth);
-      ref.outdoorGroup.visible = ok;
-      ref.minimapIcon.visible = ok;
-      ref.minimapLabel.visible = ok;
-
+      if (ref?.outdoorGroup) ref.outdoorGroup.visible = ok;
       if (ok) matches.push(booth);
     }
-
     matchCountEl.textContent = `${matches.length} match${matches.length===1?"":"es"}`;
     resultsEl.innerHTML = "";
-
     matches.forEach(b=>{
       const div = document.createElement("div");
       div.className = "resultItem";
       div.innerHTML = `<div class="name">${b.name}</div><div class="meta">${(b.categories||[]).join(", ")}</div>`;
       div.onclick = ()=>{
-        // move player near that booth (outdoors)
         if (insideBoothId) teleportToOutdoor();
-        const x = (b.side==="left") ? -6 : 6;
-        controls.getObject().position.set(x, 1.7, b.z + 8);
+        const px = (b.side==="left") ? -6 : 6;
+        controls.getObject().position.set(px, 1.7, b.z + 10);
       };
       resultsEl.appendChild(div);
     });
   }
-
-  function boothMatches(booth){
-    const catOK = (booth.categories||[]).some(c=>activeCats.has(c));
-    if (!catOK) return false;
-
-    if (!searchTerm) return true;
-    const hay = [
-      booth.name, booth.desc, ...(booth.categories||[]),
-      ...((booth.products||[]).map(p=>p.name))
-    ].join(" ").toLowerCase();
-    return hay.includes(searchTerm);
-  }
-
-  renderChips();
-  applyFilters();
 
   // -------------------------
   // Booth + product modals
@@ -1118,7 +1041,7 @@
   pOpenBooth.onclick = ()=> { if (lastProductBoothId) openBoothModal(lastProductBoothId); };
 
   // -------------------------
-  // Raycast for clicking signs/products
+  // Raycast for clicking
   // -------------------------
   const raycaster = new THREE.Raycaster();
   const screenCenter = new THREE.Vector2(0,0);
@@ -1128,6 +1051,67 @@
     raycaster.setFromCamera(screenCenter, camera);
     const hits = raycaster.intersectObjects(interactive, true);
     lookedHit = hits.length ? hits[0] : null;
+  }
+
+  // -------------------------
+  // Doors / interiors
+  // -------------------------
+  const actionPrompt = document.getElementById("actionPrompt");
+
+  function nearestDoor(){
+    const p = controls.getObject().position;
+    let best = { type:null, boothId:null, dist:1e9 };
+
+    if (!insideBoothId){
+      for (const d of entryDoors){
+        const ref = boothRefs.get(d.boothId);
+        if (!ref?.outdoorGroup?.visible) continue;
+        const dist = p.distanceTo(d.worldPos);
+        if (dist < best.dist) best = { type:"enter", boothId:d.boothId, dist };
+      }
+    } else {
+      for (const d of exitDoors){
+        if (d.boothId !== insideBoothId) continue;
+        const dist = p.distanceTo(d.worldPos);
+        if (dist < best.dist) best = { type:"exit", boothId:d.boothId, dist };
+      }
+    }
+    return best;
+  }
+
+  function updateDoorPrompt(){
+    const d = nearestDoor();
+    actionPrompt.style.display = "none";
+
+    if (d.type==="enter" && d.dist < 2.6){
+      const booth = boothRefs.get(d.boothId)?.booth;
+      if (booth){
+        actionPrompt.textContent = `Press E to enter ${booth.name}`;
+        actionPrompt.style.display = "block";
+      }
+    }
+    if (d.type==="exit" && d.dist < 3.3){
+      const booth = boothRefs.get(d.boothId)?.booth;
+      if (booth){
+        actionPrompt.textContent = `Press Q to exit ${booth.name}`;
+        actionPrompt.style.display = "block";
+      }
+    }
+  }
+
+  function teleportToInterior(boothId){
+    const ref = boothRefs.get(boothId);
+    if (!ref) return;
+    lastOutdoorPos.copy(controls.getObject().position);
+    insideBoothId = boothId;
+    controls.getObject().position.set(ref.interiorPos.ix, 1.7, ref.interiorPos.iz + 6.0);
+    controls.getObject().rotation.y = Math.PI;
+    camera.rotation.x = 0;
+  }
+
+  function teleportToOutdoor(){
+    insideBoothId = null;
+    controls.getObject().position.copy(lastOutdoorPos);
   }
 
   // -------------------------
@@ -1158,7 +1142,6 @@
     velocity.set(0,0,0);
   }
 
-  // roam bounds (free roam)
   const ROAM = { minX:-120, maxX:120, minZ:-260, maxZ:40 };
   function clampRoam(){
     const p = controls.getObject().position;
@@ -1172,9 +1155,8 @@
     const p = controls.getObject().position;
     const sphere = new THREE.Sphere(p, PLAYER_RADIUS);
     for (const c of outdoorColliders){
-      // ignore colliders for hidden booths
       const ref = boothRefs.get(c.boothId);
-      if (!ref || !ref.outdoorGroup.visible) continue;
+      if (!ref?.outdoorGroup?.visible) continue;
       if (c.box.intersectsSphere(sphere)){
         controls.getObject().position.copy(prevPos);
         velocity.set(0,0,0);
@@ -1190,21 +1172,18 @@
     if (e.code==="KeyD") move.r=true;
     if (e.code==="ShiftLeft" || e.code==="ShiftRight") move.sprint=true;
 
-    // Reset hotkey always works
     if (e.code==="KeyR"){
       resetPlayer();
-      // re-lock if currently playing
       if (isPlaying && !controls.isLocked) controls.lock();
     }
 
-    // Enter/Exit
     if (e.code==="KeyE" && isPlaying){
       const d = nearestDoor();
-      if (d.type==="enter" && d.dist < 2.4) teleportToInterior(d.boothId);
+      if (d.type==="enter" && d.dist < 2.6) teleportToInterior(d.boothId);
     }
     if (e.code==="KeyQ" && isPlaying){
       const d = nearestDoor();
-      if (d.type==="exit" && d.dist < 3.2) teleportToOutdoor();
+      if (d.type==="exit" && d.dist < 3.3) teleportToOutdoor();
     }
   });
   document.addEventListener("keyup", (e)=>{
@@ -1215,21 +1194,30 @@
     if (e.code==="ShiftLeft" || e.code==="ShiftRight") move.sprint=false;
   });
 
-  // Click anywhere on the scene to re-lock if lost
+  // Re-lock banner
+  const relockBanner = document.getElementById("relockBanner");
+  relockBanner.onclick = ()=> controls.lock();
+
+  controls.addEventListener("unlock", ()=>{
+    if (isPlaying){
+      relockBanner.style.display = "block";
+    }
+  });
+  controls.addEventListener("lock", ()=>{
+    relockBanner.style.display = "none";
+  });
+
+  // Click interactions (scene)
   document.addEventListener("mousedown", (e)=>{
-    // If clicking UI, ignore
-    const isUI = e.target.closest?.("#topbar, #leftPanel, #boothOverlay, #productOverlay");
+    const isUI = e.target.closest?.("#topbar, #leftPanel, #boothOverlay, #productOverlay, #takeControl");
     if (isUI) return;
 
     if (isPlaying && !controls.isLocked){
       controls.lock();
       return;
     }
-
-    // If locked and crosshair hit is close enough, open modals
     if (isPlaying && controls.isLocked){
-      if (!lookedHit) return;
-      if (lookedHit.distance > 5.0) return;
+      if (!lookedHit || lookedHit.distance > 5.0) return;
       const ud = lookedHit.object.userData || {};
       if (ud.type==="booth") openBoothModal(ud.boothId);
       if (ud.type==="product") openProductModal(ud.boothId, ud.productIndex);
@@ -1237,9 +1225,211 @@
   });
 
   // -------------------------
-  // Doors / interiors
+  // Sound (starts on Take Control)
   // -------------------------
-  const actionPrompt = document.getElementById("actionPrompt");
+  let soundOn = false;
+  let audio = null;
 
-  function nearestDoor(){
-    const p = controls.getObject().position;
+  function startSound(){
+    if (soundOn) return;
+    soundOn = true;
+
+    const listener = new THREE.AudioListener();
+    camera.add(listener);
+    const ctx = listener.context;
+
+    const master = ctx.createGain();
+    master.gain.value = 0.18;
+    master.connect(ctx.destination);
+
+    // wind noise
+    const noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+    const data = noiseBuf.getChannelData(0);
+    let last = 0;
+    for (let i=0;i<data.length;i++){
+      const white = Math.random()*2-1;
+      last = (last + 0.02*white)/1.02;
+      data[i] = last * 2.0;
+    }
+    const noise = ctx.createBufferSource();
+    noise.buffer = noiseBuf;
+    noise.loop = true;
+
+    const lp = ctx.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.value = 650;
+
+    const windGain = ctx.createGain();
+    windGain.gain.value = 0.22;
+
+    noise.connect(lp);
+    lp.connect(windGain);
+    windGain.connect(master);
+    noise.start();
+
+    // birds
+    const birdGain = ctx.createGain();
+    birdGain.gain.value = 0.12;
+    birdGain.connect(master);
+    function chirp(){
+      if (!soundOn) return;
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = "sine";
+      o.frequency.value = 1200 + Math.random()*900;
+      g.gain.value = 0.0;
+      o.connect(g); g.connect(birdGain);
+      const t = ctx.currentTime;
+      g.gain.linearRampToValueAtTime(0.0, t);
+      g.gain.linearRampToValueAtTime(0.10, t+0.02);
+      g.gain.linearRampToValueAtTime(0.0, t+0.14);
+      o.start(t); o.stop(t+0.15);
+      setTimeout(chirp, 900 + Math.random()*2200);
+    }
+    chirp();
+
+    audio = { noise, master };
+  }
+
+  function stopSound(){
+    if (!soundOn) return;
+    soundOn = false;
+    try { audio?.noise?.stop(); } catch {}
+    audio = null;
+  }
+
+  const soundBtn = document.getElementById("soundBtn");
+  soundBtn.onclick = ()=>{
+    if (!soundOn){ startSound(); soundBtn.textContent="Sound: On"; }
+    else { stopSound(); soundBtn.textContent="Sound: Off"; }
+  };
+
+  // -------------------------
+  // Buttons
+  // -------------------------
+  document.getElementById("vendorBtn").onclick = ()=>{
+    const FORM_URL = "https://forms.gle/REPLACE_WITH_YOUR_FORM";
+    window.open(FORM_URL, "_blank", "noopener,noreferrer");
+  };
+
+  document.getElementById("helpBtn").onclick = ()=>{
+    alert(
+`Controls:
+• WASD move, Shift sprint
+• ESC releases mouse; click scene or “Click to Resume Look”
+• R resets position
+• E enter booth (near doorway), Q exit booth
+• Click booth sign for booth info
+• Click products inside booths for Buy/Visit
+
+Search:
+Try: pottery`
+    );
+  };
+
+  document.getElementById("resetBtn").onclick = ()=> resetPlayer();
+
+  // Take control
+  document.getElementById("takeControlBtn").onclick = ()=>{
+    document.getElementById("takeControl").style.display = "none";
+    isPlaying = true;
+    autopilot = false;
+    controls.lock();
+    if (!soundOn){ startSound(); soundBtn.textContent="Sound: On"; }
+  };
+
+  // -------------------------
+  // Main loop + minimap render
+  // -------------------------
+  function applyFilters(){
+    const matches = [];
+    for (const booth of BOOTHS){
+      const ok = boothMatches(booth);
+      const ref = boothRefs.get(booth.id);
+      if (ref?.outdoorGroup) ref.outdoorGroup.visible = ok;
+      if (ok) matches.push(booth);
+    }
+    matchCountEl.textContent = `${matches.length} match${matches.length===1?"":"es"}`;
+    resultsEl.innerHTML = "";
+    matches.forEach(b=>{
+      const div = document.createElement("div");
+      div.className = "resultItem";
+      div.innerHTML = `<div class="name">${b.name}</div><div class="meta">${(b.categories||[]).join(", ")}</div>`;
+      div.onclick = ()=>{
+        if (insideBoothId) teleportToOutdoor();
+        const px = (b.side==="left") ? -6 : 6;
+        controls.getObject().position.set(px, 1.7, b.z + 10);
+      };
+      resultsEl.appendChild(div);
+    });
+  }
+
+  renderChips();
+  applyFilters();
+
+  function animate(){
+    requestAnimationFrame(animate);
+    const dt = Math.min(clock.getDelta(), 0.033);
+
+    if (!isPlaying && autopilot){
+      autopilotWalk(dt);
+    } else {
+      updateRaycast();
+      updateDoorPrompt();
+
+      const player = controls.getObject();
+      const prevPos = player.position.clone();
+
+      const baseSpeed = 18.0;
+      const speed = move.sprint ? baseSpeed * 1.8 : baseSpeed;
+
+      velocity.x -= velocity.x * 8.5 * dt;
+      velocity.z -= velocity.z * 8.5 * dt;
+
+      direction.z = Number(move.f) - Number(move.b);
+      direction.x = Number(move.r) - Number(move.l);
+      direction.normalize();
+
+      if (move.f || move.b) velocity.z -= direction.z * speed * dt;
+      if (move.l || move.r) velocity.x -= direction.x * speed * dt;
+
+      controls.moveRight(-velocity.x * dt);
+      controls.moveForward(-velocity.z * dt);
+
+      clampRoam();
+      resolveOutdoorCollision(prevPos);
+    }
+
+    updateMinimap();
+
+    // Render main view
+    renderer.setScissorTest(false);
+    renderer.clear(true, true, true);
+    renderer.setViewport(0,0,innerWidth,innerHeight);
+    renderer.setScissor(0,0,innerWidth,innerHeight);
+    renderer.setScissorTest(true);
+    renderer.render(scene, camera);
+
+    // Render minimap viewport (top-right)
+    const mapSize = 220;
+    const margin = 14;
+    const left = innerWidth - mapSize - margin;
+    const bottom = innerHeight - mapSize - margin - 70;
+    renderer.setViewport(left, bottom, mapSize, mapSize);
+    renderer.setScissor(left, bottom, mapSize, mapSize);
+    renderer.setScissorTest(true);
+    renderer.setClearColor(0x1b2a35, 1);
+    renderer.clearDepth();
+    renderer.render(scene, minimapCam);
+  }
+  animate();
+
+  window.addEventListener("resize", ()=>{
+    camera.aspect = innerWidth/innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+
+</script>
+</body>
+</html>
