@@ -7,10 +7,12 @@
   <style>
     html, body { margin:0; height:100%; overflow:hidden; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; background:#87ceeb; }
     #ui { position:fixed; inset:0; pointer-events:none; }
+
     #topbar {
       pointer-events:auto;
       position:fixed; left:12px; right:12px; top:12px;
       display:flex; gap:10px; align-items:center; justify-content:space-between;
+      z-index: 20;
     }
     .card {
       background: rgba(255,255,255,0.88);
@@ -38,6 +40,7 @@
       box-shadow: 0 0 0 2px rgba(0,0,0,0.15);
       pointer-events:none;
       opacity:0.9;
+      z-index: 15;
     }
     #crosshair::after{
       content:"";
@@ -51,7 +54,7 @@
     /* Hint */
     #hint {
       position:fixed; left:12px; bottom:12px;
-      max-width:min(740px, calc(100vw - 24px));
+      max-width:min(760px, calc(100vw - 24px));
       pointer-events:none;
       color:#fff;
       background: rgba(0,0,0,0.55);
@@ -59,10 +62,49 @@
       padding: 10px 12px;
       line-height: 1.25rem;
       font-size: 14px;
+      z-index: 15;
     }
     #hint b { color: #ffe58a; }
 
-    /* Start overlay for desktop pointer-lock */
+    /* Action prompt (near doors) */
+    #actionPrompt {
+      position:fixed;
+      left:50%; bottom:92px;
+      transform:translateX(-50%);
+      background: rgba(0,0,0,0.62);
+      color:#fff;
+      padding: 10px 12px;
+      border-radius: 14px;
+      font-size: 14px;
+      display:none;
+      pointer-events:none;
+      z-index: 15;
+    }
+
+    /* Minimap frame overlay (the actual minimap is rendered into WebGL viewport) */
+    #minimapFrame {
+      position:fixed;
+      top:70px; right:14px;
+      width:220px; height:220px;
+      border-radius: 14px;
+      border: 2px solid rgba(255,255,255,0.85);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+      pointer-events:none;
+      z-index: 12;
+    }
+    #minimapLabel{
+      position:fixed;
+      top:44px; right:14px;
+      color:#fff;
+      background: rgba(0,0,0,0.55);
+      padding:6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      pointer-events:none;
+      z-index: 12;
+    }
+
+    /* Start overlay */
     #startOverlay {
       position:fixed; inset:0;
       display:flex; align-items:center; justify-content:center;
@@ -71,7 +113,7 @@
       pointer-events:auto;
     }
     #startPanel{
-      width:min(560px, calc(100vw - 24px));
+      width:min(580px, calc(100vw - 24px));
       background: rgba(255,255,255,0.92);
       border-radius: 18px;
       padding: 16px;
@@ -142,6 +184,8 @@
       position:absolute; left:50%; top:50%;
       transform: translate(-50%,-50%);
     }
+
+    /* Mobile buttons */
     #interactBtn{
       position:fixed; right:16px; bottom:30px;
       pointer-events:auto;
@@ -152,8 +196,32 @@
       font-weight: 800;
       touch-action: manipulation;
     }
+    #enterBtn{
+      position:fixed; right:16px; bottom:92px;
+      pointer-events:auto;
+      background: rgba(255,255,255,0.88);
+      border:0; border-radius: 16px;
+      padding: 12px 14px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.20);
+      font-weight: 900;
+      touch-action: manipulation;
+      display:none;
+    }
+    #exitBtn{
+      position:fixed; right:16px; bottom:150px;
+      pointer-events:auto;
+      background: rgba(0,0,0,0.65);
+      color:#fff;
+      border:0; border-radius: 16px;
+      padding: 12px 14px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.20);
+      font-weight: 900;
+      touch-action: manipulation;
+      display:none;
+    }
+
     #lookHint{
-      position:fixed; right:16px; bottom:84px;
+      position:fixed; right:16px; bottom:206px;
       pointer-events:none;
       color:#fff;
       background: rgba(0,0,0,0.45);
@@ -183,20 +251,26 @@
     <div id="topbar">
       <div class="card">
         <div class="title">Redmond Digital Flea Market</div>
-        <div class="sub">FREE ROAM • Walk anywhere • Visit booths • Support local makers</div>
+        <div class="sub">FREE ROAM • Mini‑map • Enter booths • Outdoor ambience</div>
       </div>
       <div style="display:flex; gap:10px; align-items:center;">
         <button class="btn" id="helpBtn">Help</button>
+        <button class="btn" id="soundBtn">Sound: Off</button>
         <button class="btn" id="resetBtn">Reset</button>
       </div>
     </div>
 
+    <div id="minimapLabel">Mini‑map</div>
+    <div id="minimapFrame"></div>
+
     <div id="crosshair"></div>
 
+    <div id="actionPrompt"></div>
+
     <div id="hint">
-      <b>Desktop:</b> Click “Start” → mouse-look + WASD. Press <b>ESC</b> to release mouse. <br/>
-      <b>Mobile:</b> Left joystick moves • Swipe on right side to look • Tap <b>INTERACT</b> near a booth.
-      <br/><b>Free Roam:</b> You can roam the whole field — booths block you (no walking through them).
+      <b>Desktop:</b> Start → mouse-look + WASD. <b>E</b> enter booth • <b>Q</b> exit booth • Click booth sign to open info.
+      <br/>
+      <b>Mobile:</b> Joystick move • Swipe right side to look • Tap <b>ENTER</b> near doorway • Tap <b>EXIT</b> inside.
     </div>
 
     <!-- Mobile -->
@@ -205,23 +279,24 @@
         <div id="joyBase"><div id="joyStick"></div></div>
       </div>
       <button id="interactBtn">INTERACT</button>
+      <button id="enterBtn">ENTER</button>
+      <button id="exitBtn">EXIT</button>
       <div id="lookHint">Swipe/drag on the right side to look around.</div>
     </div>
 
-    <!-- Start overlay (desktop pointer lock prompt) -->
+    <!-- Start overlay -->
     <div id="startOverlay">
       <div id="startPanel">
-        <h2>Enter the Market (3D Free Roam)</h2>
+        <h2>Enter the Market (3D)</h2>
         <p>
-          Desktop uses <b>PointerLockControls</b> (mouse-look) for a first-person game feel. [1](https://threejs.org/docs/pages/PointerLockControls.html)[2](https://www.tutorialspoint.com/threejs/threejs_pointerlock_controls.htm)
-          Mobile uses joystick + swipe-to-look.
+          Desktop uses first‑person mouse look. Mobile uses joystick + swipe-to-look.
         </p>
         <div class="row">
           <button class="primary" id="startBtn">Start (Desktop)</button>
           <button class="btn" id="startMobileBtn">Start (Mobile)</button>
         </div>
         <p style="font-size:12px; opacity:0.8;">
-          Tip: Walk close to a booth sign and click / tap <b>INTERACT</b> to open the storefront.
+          Tip: Walk close to a tent doorway and press <b>E</b> (or tap <b>ENTER</b>) to go inside.
         </p>
       </div>
     </div>
@@ -238,7 +313,7 @@
           <button class="btn" id="closeModal">Close</button>
         </div>
         <div style="margin-top:12px; font-size:12px; opacity:0.75;">
-          “Buy/Visit” opens the business website in a new tab.
+          Links open in a new tab.
         </div>
       </div>
     </div>
@@ -249,7 +324,7 @@
   import { PointerLockControls } from "three/addons/controls/PointerLockControls.js";
 
   // ---------------------------------
-  // Booth list (you can add more later)
+  // Booth list (real Redmond examples)
   // ---------------------------------
   const BOOTHS = [
     { id:"vala", name:"VALA Art Center", desc:"Local arts nonprofit in Redmond with exhibits and events.",
@@ -279,27 +354,33 @@
   ];
 
   // -------------------------
-  // 1) Basic Three.js setup
+  // 1) Renderer / Scene / Cameras
   // -------------------------
   const canvas = document.getElementById("c");
   const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.setSize(innerWidth, innerHeight);
   renderer.shadowMap.enabled = true;
+  renderer.autoClear = false;
 
   const scene = new THREE.Scene();
   scene.fog = new THREE.Fog(0x87ceeb, 18, 180);
 
   // Sky dome
-  const sky = new THREE.Mesh(
+  scene.add(new THREE.Mesh(
     new THREE.SphereGeometry(260, 32, 16),
     new THREE.MeshBasicMaterial({ color: 0x87ceeb, side: THREE.BackSide })
-  );
-  scene.add(sky);
+  ));
 
   const camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.1, 400);
   camera.position.set(0, 1.7, 6);
 
+  // Minimap camera (top-down)
+  const minimapCam = new THREE.OrthographicCamera(-18, 18, 18, -18, 0.1, 500);
+  minimapCam.up.set(0,0,-1);
+  minimapCam.lookAt(new THREE.Vector3(0,0,0));
+
+  // Lights
   const sun = new THREE.DirectionalLight(0xffffff, 1.15);
   sun.position.set(10, 18, 10);
   sun.castShadow = true;
@@ -311,9 +392,201 @@
   sun.shadow.camera.top = 40;
   sun.shadow.camera.bottom = -40;
   scene.add(sun);
-
   scene.add(new THREE.AmbientLight(0xffffff, 0.45));
 
-  // FREE ROAM FIELD (big grass)
+  // Ground
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(240, 240),
+    new THREE.MeshStandardMaterial({ color: 0x6fbf73 })
+  );
+  ground.rotation.x = -Math.PI/2;
+  ground.receiveShadow = true;
+  ground.position.set(0, 0, -60);
+  scene.add(ground);
+
+  // Aisle landmark (optional)
+  const aisle = new THREE.Mesh(
+    new THREE.PlaneGeometry(5.0, 140),
+    new THREE.MeshStandardMaterial({ color: 0xc9b08a })
+  );
+  aisle.rotation.x = -Math.PI/2;
+  aisle.receiveShadow = true;
+  aisle.position.set(0, 0.01, -65);
+  scene.add(aisle);
+
+  // Trees for ambience
+  function addTree(x, z){
+    const trunk = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.14,0.22,1.8,10),
+      new THREE.MeshStandardMaterial({ color: 0x6d4c2f })
+    );
+    trunk.position.set(x, 0.9, z);
+    trunk.castShadow = true;
+
+    const crown = new THREE.Mesh(
+      new THREE.SphereGeometry(1.0, 14, 10),
+      new THREE.MeshStandardMaterial({ color: 0x2f7d32 })
+    );
+    crown.position.set(x, 2.2, z);
+    crown.castShadow = true;
+
+    scene.add(trunk, crown);
+  }
+  for (let i=0; i<26; i++){
+    const x = (Math.random() * 120) - 60;
+    const z = (Math.random() * 170) - 140;
+    if (Math.abs(x) < 10 && z < 10 && z > -140) continue;
+    addTree(x, z);
+  }
+
+  // -------------------------
+  // 2) Controls + Movement
+  // -------------------------
+  const controls = new PointerLockControls(camera, document.body);
+  scene.add(controls.getObject());
+
+  let isPlaying = false;
+  let isMobile = false;
+
+  const velocity = new THREE.Vector3();
+  const direction = new THREE.Vector3();
+  const move = { forward:false, back:false, left:false, right:false };
+  const clock = new THREE.Clock();
+
+  // Free roam bounds
+  const ROAM = { minX:-70, maxX:70, minZ:-170, maxZ:30 };
+  const PLAYER_RADIUS = 0.45;
+
+  function clampToRoamBounds(){
+    const obj = controls.getObject();
+    obj.position.x = THREE.MathUtils.clamp(obj.position.x, ROAM.minX, ROAM.maxX);
+    obj.position.z = THREE.MathUtils.clamp(obj.position.z, ROAM.minZ, ROAM.maxZ);
+    obj.position.y = 1.7;
+  }
+
+  // Keyboard movement
+  function onKey(e, down){
+    if (!isPlaying || isMobile) return;
+    switch(e.code){
+      case "KeyW":
+      case "ArrowUp": move.forward = down; break;
+      case "KeyS":
+      case "ArrowDown": move.back = down; break;
+      case "KeyA":
+      case "ArrowLeft": move.left = down; break;
+      case "KeyD":
+      case "ArrowRight": move.right = down; break;
+    }
+  }
+  addEventListener("keydown", e => onKey(e, true));
+  addEventListener("keyup", e => onKey(e, false));
+
+  // -------------------------
+  // 3) Booths + Doors + Interiors
+  // -------------------------
+  const boothGroup = new THREE.Group();
+  scene.add(boothGroup);
+
+  const interactiveSigns = [];       // click to open info
+  const boothGroups = [];            // for collision
+  const colliders = [];              // AABB collision boxes
+
+  // Door triggers (outside) and exit triggers (inside)
+  const entryDoors = []; // { booth, pos:Vector3 }
+  const exitDoors = [];  // { booth, pos:Vector3 }
+
+  // Interior positions far away from outdoor area (so minimap doesn't show it)
+  const INTERIOR_ORIGIN = new THREE.Vector3(420, 0, 420);
+  const INTERIOR_SPACING = 40;
+
+  // State: inside which booth?
+  let insideBoothId = null;
+  let lastOutdoorPos = new THREE.Vector3(0,1.7,6);
+
+  function makeTextTexture(text){
+    const cnv = document.createElement("canvas");
+    cnv.width = 512; cnv.height = 256;
+    const ctx = cnv.getContext("2d");
+    ctx.fillStyle = "rgba(20,20,20,0.92)";
+    ctx.fillRect(0,0,cnv.width,cnv.height);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 44px system-ui";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(text, cnv.width/2, cnv.height/2);
+    const tex = new THREE.CanvasTexture(cnv);
+    tex.anisotropy = 8;
+    return tex;
+  }
+
+  function addBooth(b, idx){
+    const x = (b.side === "left") ? -10 : 10;
+    const z = b.z;
+
+    const g = new THREE.Group();
+    g.position.set(x, 0, z);
+
+    // Tent legs
+    const legMat = new THREE.MeshStandardMaterial({ color: 0x7a5a34 });
+    const legGeo = new THREE.CylinderGeometry(0.05,0.05,1.5,10);
+    for (const [lx,lz] of [[-0.9,-0.9],[0.9,-0.9],[-0.9,0.9],[0.9,0.9]]){
+      const leg = new THREE.Mesh(legGeo, legMat);
+      leg.position.set(lx, 0.75, lz);
+      leg.castShadow = true;
+      g.add(leg);
+    }
+
+    // Table
+    const tableTop = new THREE.Mesh(
+      new THREE.BoxGeometry(1.8, 0.1, 0.9),
+      new THREE.MeshStandardMaterial({ color: 0x8b6a42 })
+    );
+    tableTop.position.set(0, 0.55, 0.15);
+    tableTop.castShadow = true;
+    tableTop.receiveShadow = true;
+    g.add(tableTop);
+
+    // Canopy
+    const canopy = new THREE.Mesh(
+      new THREE.ConeGeometry(1.55, 0.9, 4),
+      new THREE.MeshStandardMaterial({ color: b.color })
+    );
+    canopy.position.set(0, 1.65, 0);
+    canopy.castShadow = true;
+    g.add(canopy);
+
+    // Backdrop
+    const back = new THREE.Mesh(
+      new THREE.BoxGeometry(2.0, 1.55, 0.12),
+      new THREE.MeshStandardMaterial({ color: 0xffffff })
+    );
+    back.position.set(0, 0.9, -0.95);
+    back.castShadow = true;
+    back.receiveShadow = true;
+    g.add(back);
+
+    // Sign board (click opens info modal)
+    const sign = new THREE.Mesh(
+      new THREE.BoxGeometry(1.9, 0.55, 0.07),
+      new THREE.MeshStandardMaterial({ map: makeTextTexture(b.name) })
+    );
+    sign.position.set(0, 1.35, 1.15);
+    sign.castShadow = true;
+    sign.userData.booth = b;
+    g.add(sign);
+    interactiveSigns.push(sign);
+
+    // Doorway marker (outside entry point)
+    const door = new THREE.Mesh(
+      new THREE.BoxGeometry(1.4, 2.1, 0.1),
+      new THREE.MeshStandardMaterial({ color: 0x111111 })
+    );
+    door.position.set(0, 1.05, 0.65);
+    door.castShadow = true;
+    g.add(door);
+
+    // Soft “welcome mat” to hint entry zone
+    const mat = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.6, 0.9),
+      new THREE.MeshStandardMaterial({ color: 0x2b2b2b })
+    );
