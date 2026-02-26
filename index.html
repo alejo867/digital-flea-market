@@ -2,138 +2,326 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Digital Flea Market</title>
+  <title>Redmond Digital Flea Market (3D)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <style>
-    :root {
-      --ui-radius: 14px;
-      --ui-padding: 12px;
-      --ui-bg: rgba(255,255,255,0.88);
+    :root{
+      --pad: 12px;
+      --gap: 10px;
+      --radius: 14px;
+      --bg: rgba(255,255,255,0.88);
+      --shadow: 0 10px 30px rgba(0,0,0,0.18);
+      --blur: blur(8px);
+      --font: system-ui, -apple-system, Segoe UI, Roboto, Arial;
     }
+    html, body { margin:0; height:100%; overflow:hidden; font-family: var(--font); background:#87ceeb; }
+    canvas { display:block; }
 
-    html, body {
-      margin: 0;
-      height: 100%;
-      overflow: hidden;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
-      background: #87ceeb;
+    /* Debug/error overlay */
+    #errorOverlay{
+      position:fixed; inset:0;
+      display:none;
+      background: rgba(0,0,0,0.82);
+      color:#fff;
+      padding: 14px;
+      z-index: 9999;
+      overflow:auto;
+      pointer-events:auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
     }
+    #errorOverlay h3{ margin:0 0 8px; font-family: var(--font); }
+    #errorOverlay pre{ white-space: pre-wrap; }
 
-    canvas {
-      display: block;
+    /* Top bar */
+    #topbar{
+      position:fixed;
+      top: 12px; left: 12px; right: 12px;
+      display:flex; align-items:center; justify-content:space-between;
+      gap: var(--gap);
+      z-index: 50;
+      pointer-events:auto;
     }
-
-    /* ---------- TOP BAR ---------- */
-    #topbar {
-      position: fixed;
-      top: 12px;
-      left: 12px;
-      right: 12px;
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      z-index: 10;
-      pointer-events: auto;
+    .card{
+      background: var(--bg);
+      backdrop-filter: var(--blur);
+      border-radius: var(--radius);
+      padding: var(--pad);
+      box-shadow: var(--shadow);
+      display:flex; flex-direction:column; gap:2px;
+      min-width: 260px;
     }
+    .title{ font-weight: 900; font-size: 16px; line-height: 1.1; }
+    .sub{ font-size: 12px; opacity: 0.75; }
 
-    .panel {
-      background: var(--ui-bg);
-      backdrop-filter: blur(8px);
-      border-radius: var(--ui-radius);
-      padding: var(--ui-padding);
-      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-    }
-
-    .title {
-      font-weight: 900;
-      font-size: 16px;
-    }
-
-    .subtitle {
-      font-size: 12px;
-      opacity: 0.75;
-    }
-
-    .btn {
-      border: none;
-      border-radius: 10px;
-      padding: 10px 14px;
-      background: #111;
-      color: white;
-      cursor: pointer;
-      font-weight: 700;
-    }
-
-    /* ---------- LEFT PANEL ---------- */
-    #leftPanel {
-      position: fixed;
-      top: 84px;
-      left: 12px;
-      width: 320px;
-      z-index: 10;
-      pointer-events: auto;
-    }
-
-    #leftPanel h3 {
-      margin: 0 0 8px;
-      font-size: 14px;
-    }
-
-    #search {
-      width: 100%;
+    .btn{
+      border:0;
+      border-radius: 12px;
       padding: 10px 12px;
-      border-radius: 10px;
-      border: 1px solid rgba(0,0,0,0.15);
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: var(--blur);
+      box-shadow: var(--shadow);
+      cursor:pointer;
+      font-weight: 800;
+      white-space:nowrap;
+    }
+    .btn.primary{
+      background:#111; color:#fff;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.25);
+    }
+
+    /* Left panel */
+    #leftPanel{
+      position:fixed;
+      top: 82px; left: 12px;
+      width: 340px;
+      z-index: 45;
+      pointer-events:auto;
+      background: var(--bg);
+      backdrop-filter: var(--blur);
+      border-radius: var(--radius);
+      padding: var(--pad);
+      box-shadow: var(--shadow);
+      display:flex;
+      flex-direction:column;
+      gap: 10px;
+      max-height: calc(100vh - 110px);
+    }
+    #leftPanel h3{ margin:0; font-size: 14px; }
+    #search{
+      width:100%;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(0,0,0,0.14);
+      outline:none;
       font-size: 14px;
       box-sizing: border-box;
+      background: rgba(255,255,255,0.95);
     }
+    .chips{ display:flex; flex-wrap:wrap; gap:8px; }
+    .chip{
+      display:flex; align-items:center; gap:8px;
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: rgba(0,0,0,0.06);
+      cursor:pointer;
+      user-select:none;
+      font-size: 13px;
+    }
+    .dot{ width:10px; height:10px; border-radius:999px; border:1px solid rgba(0,0,0,0.15); }
+    #results{
+      border-top: 1px solid rgba(0,0,0,0.10);
+      padding-top: 10px;
+      display:flex; flex-direction:column; gap:8px;
+      overflow:auto;
+    }
+    .resultItem{
+      padding: 8px 10px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.92);
+      border: 1px solid rgba(0,0,0,0.08);
+      cursor:pointer;
+      display:flex; flex-direction:column; gap:2px;
+    }
+    .resultItem .name{ font-weight: 900; font-size: 13px; }
+    .resultItem .meta{ font-size: 12px; opacity:0.75; }
 
-    /* ---------- MINIMAP ---------- */
-    #minimapFrame {
-      position: fixed;
+    /* Minimap frame */
+    #minimapLabel{
+      position:fixed;
       right: 14px;
-      top: 84px;
+      top: 50px;
+      z-index: 30;
+      pointer-events:none;
+      color:#fff;
+      background: rgba(0,0,0,0.50);
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+    }
+    #minimapFrame{
+      position:fixed;
+      right: 14px;
+      top: 82px;
       width: 220px;
       height: 220px;
       border-radius: 14px;
       border: 2px solid rgba(255,255,255,0.9);
-      z-index: 5;
-      pointer-events: none;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+      z-index: 25;
+      pointer-events:none;
     }
 
-    /* ---------- OVERLAY ---------- */
-    #takeControl {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.45);
-      display: flex;
-      align-items: center;
-      justify-content: center;
+    /* Crosshair */
+    #crosshair{
+      position:fixed;
+      left: 50%; top: 50%;
+      transform: translate(-50%,-50%);
+      width: 14px; height: 14px;
+      border-radius: 999px;
+      border: 2px solid rgba(255,255,255,0.9);
+      box-shadow: 0 0 0 2px rgba(0,0,0,0.15);
       z-index: 20;
-      pointer-events: auto;
+      pointer-events:none;
+      opacity: 0.9;
+    }
+    #crosshair::after{
+      content:"";
+      position:absolute; left:50%; top:50%;
+      transform:translate(-50%,-50%);
+      width:4px; height:4px; border-radius:999px;
+      background: rgba(255,255,255,0.9);
     }
 
-    #takeControl .panel {
-      width: 420px;
-      text-align: center;
-    }
-
-    /* ---------- HINT ---------- */
-    #hint {
-      position: fixed;
+    /* Bottom hint */
+    #hint{
+      position:fixed;
       left: 12px;
       bottom: 12px;
-      background: rgba(0,0,0,0.6);
-      color: white;
-      padding: 10px 14px;
-      border-radius: 12px;
+      z-index: 20;
+      pointer-events:none;
+      color:#fff;
+      background: rgba(0,0,0,0.58);
+      border-radius: 14px;
+      padding: 10px 12px;
+      max-width: calc(100vw - 24px);
+      line-height: 1.25rem;
       font-size: 14px;
-      z-index: 10;
+    }
+    #hint b{ color:#ffe58a; }
+
+    /* Door prompt */
+    #actionPrompt{
+      position:fixed;
+      left: 50%;
+      bottom: 90px;
+      transform: translateX(-50%);
+      z-index: 20;
+      pointer-events:none;
+      color:#fff;
+      background: rgba(0,0,0,0.62);
+      border-radius: 14px;
+      padding: 10px 12px;
+      display:none;
+      font-size: 14px;
+    }
+
+    /* Take control overlay */
+    #takeControl{
+      position:fixed; inset:0;
+      background: rgba(0,0,0,0.45);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      z-index: 60;
+      pointer-events:auto;
+    }
+    #takeControl .panel{
+      width: min(560px, calc(100vw - 24px));
+      background: rgba(255,255,255,0.94);
+      border-radius: 18px;
+      padding: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+      text-align:left;
+      display:flex;
+      flex-direction:column;
+      gap: 10px;
+    }
+    #takeControl h2{ margin:0; }
+    #takeControl p{ margin:0; opacity:0.85; line-height:1.25rem; }
+
+    /* Booth modal */
+    #boothOverlay{
+      position:fixed; inset:0;
+      background: rgba(0,0,0,0.60);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      z-index: 80;
+      pointer-events:auto;
+      padding: 14px;
+    }
+    #boothModal{
+      width:min(980px, calc(100vw - 24px));
+      max-height: min(86vh, 900px);
+      overflow:auto;
+      background: rgba(255,255,255,0.95);
+      border-radius: 18px;
+      padding: 16px;
+      backdrop-filter: blur(10px);
+    }
+    #boothHeader{ display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+    #boothHeader h2{ margin:0; }
+    #boothHeader p{ margin:8px 0 0; opacity:0.8; }
+    .pills{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+    .pill{
+      display:inline-block;
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: rgba(0,0,0,0.06);
+      text-decoration:none;
+      color:#111;
+      font-size: 14px;
+    }
+    .prodGrid{
+      display:grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap:10px;
+      margin-top: 14px;
+    }
+    .prodCard{
+      border: 1px solid rgba(0,0,0,0.10);
+      border-radius: 14px;
+      padding: 10px;
+      background: rgba(255,255,255,0.95);
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+    .prodCard .name{ font-weight:900; }
+    .prodCard .price{ opacity:0.75; font-size: 13px; }
+    .prodCard a{
+      display:inline-block;
+      text-decoration:none;
+      background:#111; color:#fff;
+      padding:10px 12px;
+      border-radius: 12px;
+      text-align:center;
+      font-weight: 900;
+    }
+
+    /* Product modal */
+    #productOverlay{
+      position:fixed; inset:0;
+      background: rgba(0,0,0,0.65);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      z-index: 85;
+      pointer-events:auto;
+      padding: 14px;
+    }
+    #productModal{
+      width:min(720px, calc(100vw - 24px));
+      background: rgba(255,255,255,0.97);
+      border-radius: 18px;
+      padding: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+    }
+    #productModal h3{ margin:0; }
+    #productModal .meta{ margin-top:6px; opacity:0.75; }
+    #productModal .actions{ margin-top:12px; display:flex; gap:10px; flex-wrap:wrap; }
+    .primaryLink{
+      display:inline-block;
+      text-decoration:none;
+      background:#111;
+      color:#fff;
+      padding: 10px 12px;
+      border-radius: 12px;
+      font-weight: 900;
     }
   </style>
 
-  <!-- IMPORT MAP (simple, reliable) -->
   <script type="importmap">
   {
     "imports": {
@@ -145,168 +333,913 @@
 </head>
 
 <body>
-
-<canvas id="c"></canvas>
-
-<!-- UI -->
-<div id="topbar">
-  <div class="panel">
-    <div class="title">Digital Flea Market</div>
-    <div class="subtitle">Walk the aisle • Explore booths</div>
+  <div id="errorOverlay">
+    <h3>Something went wrong</h3>
+    <pre id="errorText"></pre>
   </div>
-  <button class="btn" id="resetBtn">Reset</button>
-</div>
 
-<div id="leftPanel" class="panel">
-  <h3>Search Vendors</h3>
-  <input id="search" placeholder="Search (e.g. pottery, jewelry)" />
-</div>
+  <canvas id="c"></canvas>
 
-<div id="minimapFrame"></div>
-
-<div id="takeControl">
-  <div class="panel">
-    <h2>Welcome</h2>
-    <p>You are entering the digital flea market aisle.</p>
-    <button class="btn" id="takeControlBtn">Take Control</button>
+  <div id="topbar">
+    <div class="card">
+      <div class="title">Redmond Digital Flea Market</div>
+      <div class="sub">Marymoor Park‑inspired outdoor market • 3D walkthrough</div>
+    </div>
+    <div style="display:flex; gap:10px; align-items:center;">
+      <button class="btn" id="vendorBtn">Vendor Submit</button>
+      <button class="btn" id="soundBtn">Sound: Off</button>
+      <button class="btn" id="helpBtn">Help</button>
+      <button class="btn" id="resetBtn">Reset</button>
+    </div>
   </div>
-</div>
 
-<div id="hint">
-  WASD to move • Mouse to look
-</div>
+  <div id="leftPanel">
+    <div style="display:flex; align-items:center; justify-content:space-between;">
+      <h3 style="margin:0;">Find vendors</h3>
+      <div style="font-size:12px; opacity:0.7;" id="matchCount">0 matches</div>
+    </div>
+    <input id="search" placeholder="Search (try: pottery)" />
+    <div class="chips" id="categoryChips"></div>
+    <div id="results"></div>
+  </div>
+
+  <div id="minimapLabel">Mini‑map</div>
+  <div id="minimapFrame"></div>
+
+  <div id="crosshair"></div>
+  <div id="actionPrompt"></div>
+
+  <div id="hint">
+    <b>WASD</b> move • <b>Shift</b> sprint • <b>R</b> reset • <b>ESC</b> release mouse • click the scene to re‑capture mouse • <b>E</b> enter booth • <b>Q</b> exit booth
+  </div>
+
+  <div id="takeControl">
+    <div class="panel">
+      <h2>Welcome — you’re entering the market</h2>
+      <p>The camera starts walking forward. Click <b>Take Control</b> to enable mouse‑look, faster movement, mini‑map tracking, and sound.</p>
+      <button class="btn primary" id="takeControlBtn">Take Control</button>
+      <p style="font-size:12px; opacity:0.75;">
+        Note: audio and pointer lock require a click in the browser.
+      </p>
+    </div>
+  </div>
+
+  <!-- Booth modal -->
+  <div id="boothOverlay">
+    <div id="boothModal">
+      <div id="boothHeader">
+        <div>
+          <h2 id="bTitle">Booth</h2>
+          <p id="bDesc"></p>
+          <div class="pills" id="bLinks"></div>
+        </div>
+        <button class="btn" id="closeBooth">Close</button>
+      </div>
+      <div id="bProducts"></div>
+    </div>
+  </div>
+
+  <!-- Product modal -->
+  <div id="productOverlay">
+    <div id="productModal">
+      <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start;">
+        <div>
+          <h3 id="pTitle">Product</h3>
+          <div class="meta" id="pFrom"></div>
+          <div class="meta" id="pPrice"></div>
+        </div>
+        <button class="btn" id="closeProduct">Close</button>
+      </div>
+      <div class="actions">
+        <a class="primaryLink" id="pBuy" href="#" target="_blank" rel="noopener noreferrer">Buy / Visit</a>
+        <button class="btn" id="pOpenBooth">Open Booth Info</button>
+      </div>
+      <div style="margin-top:10px; font-size:12px; opacity:0.7;">
+        Replace example product URLs with Etsy/Square/Shopify/Stripe links later.
+      </div>
+    </div>
+  </div>
 
 <script type="module">
-import * as THREE from "three";
-import { PointerLockControls } from "three/addons/controls/PointerLockControls.js";
+  // --- On-screen errors (so if anything breaks, we SEE it) ---
+  const errorOverlay = document.getElementById("errorOverlay");
+  const errorText = document.getElementById("errorText");
+  function showError(msg){ errorText.textContent = msg; errorOverlay.style.display = "block"; }
+  window.addEventListener("error", (e)=>showError(String(e.error?.stack || e.message || e)));
+  window.addEventListener("unhandledrejection", (e)=>showError(String(e.reason?.stack || e.reason || e)));
 
-/* ---------- BASIC FLAGS ---------- */
-let isPlaying = false;
+  import * as THREE from "three";
+  import { PointerLockControls } from "three/addons/controls/PointerLockControls.js";
 
-/* ---------- RENDERER ---------- */
-const canvas = document.getElementById("c");
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(window.devicePixelRatio);
+  // -------------------------
+  // Data + filters
+  // -------------------------
+  const CATEGORIES = [
+    { key:"Jewelry",  color:"#e6ddff" },
+    { key:"Ceramics", color:"#d8e8ff" },
+    { key:"Crochet",  color:"#e9f7d9" },
+    { key:"Art",      color:"#ffd56a" },
+    { key:"Gifts",    color:"#fff2cc" },
+    { key:"Food",     color:"#ffd1dc" }
+  ];
+  const catColor = Object.fromEntries(CATEGORIES.map(c => [c.key, c.color]));
 
-/* ---------- SCENE ---------- */
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87ceeb);
+  // Example booths (add more anytime)
+  const BOOTHS = [
+    {
+      id:"eastsidepottery",
+      name:"Eastside Pottery",
+      desc:"Pottery studio with memberships, workshops, and open studio.",
+      categories:["Ceramics"],
+      links:[ {label:"Visit Website", url:"https://www.eastsidepottery.com/"} ],
+      products:[
+        { id:"p1", name:"Beginner Workshop", price:"See site", url:"https://www.eastsidepottery.com/" },
+        { id:"p2", name:"Membership", price:"See site", url:"https://www.eastsidepottery.com/" },
+        { id:"p3", name:"Open Studio", price:"See site", url:"https://www.eastsidepottery.com/" }
+      ],
+      side:"right", z:-32
+    },
+    {
+      id:"vala",
+      name:"VALA Art Center",
+      desc:"Local arts nonprofit in Redmond with exhibits and events.",
+      categories:["Art"],
+      links:[ {label:"Visit Website", url:"https://www.valaeastside.org/"} ],
+      products:[
+        { id:"p1", name:"Gallery Visit", price:"See site", url:"https://www.valaeastside.org/" },
+        { id:"p2", name:"Workshops", price:"See site", url:"https://www.valaeastside.org/" },
+        { id:"p3", name:"Donate", price:"Optional", url:"https://www.valaeastside.org/" }
+      ],
+      side:"left", z:-22
+    },
+    {
+      id:"paintaway",
+      name:"Paint Away!",
+      desc:"Ceramics painting & glass fusing studio.",
+      categories:["Ceramics","Gifts"],
+      links:[ {label:"Visit Website", url:"https://paintawaynow.com/"} ],
+      products:[
+        { id:"p1", name:"Pottery-to-go Kit", price:"See site", url:"https://paintawaynow.com/" },
+        { id:"p2", name:"Glass Fusing", price:"See site", url:"https://paintawaynow.com/" },
+        { id:"p3", name:"Gift Certificate", price:"See site", url:"https://paintawaynow.com/" }
+      ],
+      side:"right", z:-46
+    },
+    {
+      id:"utopia",
+      name:"Utopia (Jewelry & Gifts)",
+      desc:"Jewelry & gift ideas at Redmond Town Center.",
+      categories:["Jewelry","Gifts"],
+      links:[ {label:"Directory Listing", url:"https://redmondtowncenter.com/directory/utopia"} ],
+      products:[
+        { id:"p1", name:"Gem Jewelry", price:"See site", url:"https://redmondtowncenter.com/directory/utopia" },
+        { id:"p2", name:"Gift Ideas", price:"See site", url:"https://redmondtowncenter.com/directory/utopia" },
+        { id:"p3", name:"Store Info", price:"See site", url:"https://redmondtowncenter.com/directory/utopia" }
+      ],
+      side:"left", z:-58
+    },
+    {
+      id:"brugge",
+      name:"Brugge Chocolates",
+      desc:"European-style artisan truffles handcrafted in Redmond.",
+      categories:["Food","Gifts"],
+      links:[ {label:"Shop / Visit", url:"https://www.bruggechocolates.com/"} ],
+      products:[
+        { id:"p1", name:"Build Your Box", price:"See site", url:"https://www.bruggechocolates.com/" },
+        { id:"p2", name:"Gift Boxes", price:"See site", url:"https://www.bruggechocolates.com/" },
+        { id:"p3", name:"Gift Cards", price:"See site", url:"https://www.bruggechocolates.com/" }
+      ],
+      side:"right", z:-70
+    }
+  ];
 
-/* ---------- CAMERA ---------- */
-const camera = new THREE.PerspectiveCamera(
-  70,
-  window.innerWidth / window.innerHeight,
-  0.1,
-  500
-);
-camera.position.set(0, 1.7, 8);
-
-/* ---------- CONTROLS ---------- */
-const controls = new PointerLockControls(camera, document.body);
-scene.add(controls.getObject());
-
-/* ---------- LIGHTS ---------- */
-scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-const sun = new THREE.DirectionalLight(0xffffff, 0.8);
-sun.position.set(10, 20, 10);
-scene.add(sun);
-
-/* ---------- GROUND ---------- */
-const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(200, 200),
-  new THREE.MeshStandardMaterial({ color: 0x6fbf73 })
-);
-ground.rotation.x = -Math.PI / 2;
-ground.position.z = -60;
-scene.add(ground);
-
-/* ---------- AISLE ---------- */
-const aisle = new THREE.Mesh(
-  new THREE.PlaneGeometry(5, 120),
-  new THREE.MeshStandardMaterial({ color: 0xc9b08a })
-);
-aisle.rotation.x = -Math.PI / 2;
-aisle.position.z = -60;
-aisle.position.y = 0.01;
-scene.add(aisle);
-
-/* ---------- BOOTHS ---------- */
-function addBooth(x, z, color) {
-  const booth = new THREE.Mesh(
-    new THREE.BoxGeometry(2.5, 2, 2),
-    new THREE.MeshStandardMaterial({ color })
-  );
-  booth.position.set(x, 1, z);
-  scene.add(booth);
-}
-
-for (let i = 0; i < 6; i++) {
-  addBooth(-8, -10 - i * 12, 0xffd56a);
-  addBooth( 8, -10 - i * 12, 0xaad7ff);
-}
-
-/* ---------- MOVEMENT ---------- */
-const velocity = new THREE.Vector3();
-const direction = new THREE.Vector3();
-const move = { f: false, b: false, l: false, r: false };
-
-document.addEventListener("keydown", e => {
-  if (!isPlaying) return;
-  if (e.code === "KeyW") move.f = true;
-  if (e.code === "KeyS") move.b = true;
-  if (e.code === "KeyA") move.l = true;
-  if (e.code === "KeyD") move.r = true;
-});
-
-document.addEventListener("keyup", e => {
-  if (e.code === "KeyW") move.f = false;
-  if (e.code === "KeyS") move.b = false;
-  if (e.code === "KeyA") move.l = false;
-  if (e.code === "KeyD") move.r = false;
-});
-
-/* ---------- TAKE CONTROL ---------- */
-document.getElementById("takeControlBtn").onclick = () => {
-  document.getElementById("takeControl").style.display = "none";
-  isPlaying = true;
-  controls.lock();
-};
-
-/* ---------- LOOP ---------- */
-const clock = new THREE.Clock();
-
-function animate() {
-  requestAnimationFrame(animate);
-  const dt = clock.getDelta();
-
-  if (isPlaying) {
-    velocity.z -= velocity.z * 10 * dt;
-    velocity.x -= velocity.x * 10 * dt;
-
-    direction.z = Number(move.f) - Number(move.b);
-    direction.x = Number(move.r) - Number(move.l);
-    direction.normalize();
-
-    const speed = 10;
-    if (move.f || move.b) velocity.z -= direction.z * speed * dt;
-    if (move.l || move.r) velocity.x -= direction.x * speed * dt;
-
-    controls.moveRight(-velocity.x * dt);
-    controls.moveForward(-velocity.z * dt);
+  function boothColorHex(booth){
+    const key = (booth.categories && booth.categories[0]) || "Art";
+    return new THREE.Color(catColor[key] || "#ffffff").getHex();
   }
 
-  renderer.render(scene, camera);
-}
+  // UI wiring
+  const chipsEl = document.getElementById("categoryChips");
+  const resultsEl = document.getElementById("results");
+  const matchCountEl = document.getElementById("matchCount");
+  const searchEl = document.getElementById("search");
 
-animate();
+  const activeCats = new Set(CATEGORIES.map(c=>c.key)); // all on
+  let searchTerm = "";
 
-window.addEventListener("resize", () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-});
-</script>
+  function renderChips(){
+    chipsEl.innerHTML = "";
+    CATEGORIES.forEach(c=>{
+      const div = document.createElement("div");
+      div.className = "chip";
+      div.innerHTML = `<span class="dot" style="background:${c.color}"></span><span>${c.key}</span><span style="opacity:.7">${activeCats.has(c.key) ? "✓" : ""}</span>`;
+      div.onclick = ()=>{
+        if (activeCats.has(c.key)) activeCats.delete(c.key);
+        else activeCats.add(c.key);
+        applyFilters();
+        renderChips();
+      };
+      chipsEl.appendChild(div);
+    });
+  }
 
-</body>
-</html>
+  function boothMatches(booth){
+    // categories
+    const cats = booth.categories || [];
+    const catOK = cats.some(c=>activeCats.has(c));
+    if (!catOK) return false;
+
+    // search
+    if (!searchTerm) return true;
+    const hay = [
+      booth.name, booth.desc,
+      ...(booth.categories||[]),
+      ...((booth.products||[]).map(p=>p.name))
+    ].join(" ").toLowerCase();
+    return hay.includes(searchTerm);
+  }
+
+  searchEl.addEventListener("input", ()=>{
+    searchTerm = (searchEl.value || "").trim().toLowerCase();
+    applyFilters();
+  });
+
+  // -------------------------
+  // Three.js scene
+  // -------------------------
+  const canvas = document.getElementById("c");
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.autoClear = false;
+
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.Fog(0x87ceeb, 30, 240);
+
+  // Simple sky gradient sphere
+  const skyGeo = new THREE.SphereGeometry(500, 32, 16);
+  const skyMat = new THREE.MeshBasicMaterial({ color: 0x87ceeb, side: THREE.BackSide });
+  const sky = new THREE.Mesh(skyGeo, skyMat);
+  scene.add(sky);
+
+  // Lights
+  scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+  const sun = new THREE.DirectionalLight(0xffffff, 1.15);
+  sun.position.set(14, 24, 14);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  scene.add(sun);
+
+  // Camera + controls
+  const camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.1, 900);
+  camera.position.set(0, 1.7, 10);
+
+  const controls = new PointerLockControls(camera, document.body);
+  scene.add(controls.getObject());
+
+  // Ground textures (procedural “Marymoor Park‑inspired” map)
+  function makeParkTexture(){
+    const c = document.createElement("canvas");
+    c.width = 1024; c.height = 1024;
+    const ctx = c.getContext("2d");
+
+    // grass base
+    ctx.fillStyle = "#5fbf6a";
+    ctx.fillRect(0,0,c.width,c.height);
+
+    // noise speckles for grass
+    for(let i=0;i<120000;i++){
+      const x = Math.random()*1024;
+      const y = Math.random()*1024;
+      const g = 90 + Math.random()*60;
+      ctx.fillStyle = `rgba(${g},${180+Math.random()*40|0},${g},0.08)`;
+      ctx.fillRect(x,y,1,1);
+    }
+
+    // pond shape
+    ctx.fillStyle = "rgba(70,140,200,0.9)";
+    ctx.beginPath();
+    ctx.ellipse(720, 460, 160, 110, 0.2, 0, Math.PI*2);
+    ctx.fill();
+
+    // paths
+    ctx.strokeStyle = "rgba(210,190,140,0.95)";
+    ctx.lineWidth = 26;
+    ctx.lineCap = "round";
+
+    function path(points){
+      ctx.beginPath();
+      ctx.moveTo(points[0][0], points[0][1]);
+      for (let i=1;i<points.length;i++) ctx.lineTo(points[i][0], points[i][1]);
+      ctx.stroke();
+    }
+    // central “aisle”
+    path([[512,1020],[512,760],[512,520],[512,220],[512,30]]);
+    // side trails
+    path([[512,600],[340,500],[220,360],[140,220]]);
+    path([[512,520],[700,540],[860,620],[980,740]]);
+
+    // label
+    ctx.fillStyle = "rgba(0,0,0,0.65)";
+    ctx.fillRect(24,24,340,60);
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 28px system-ui";
+    ctx.fillText("Marymoor Park (inspired map)", 40, 64);
+
+    const tex = new THREE.CanvasTexture(c);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(2.0, 2.0);
+    tex.anisotropy = 8;
+    return tex;
+  }
+
+  const grassTex = makeParkTexture();
+
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(320, 340),
+    new THREE.MeshStandardMaterial({ map: grassTex })
+  );
+  ground.rotation.x = -Math.PI/2;
+  ground.receiveShadow = true;
+  ground.position.set(0, 0, -90);
+  scene.add(ground);
+
+  // Aisle “market path” (extra visible)
+  const aisle = new THREE.Mesh(
+    new THREE.PlaneGeometry(6.0, 220),
+    new THREE.MeshStandardMaterial({ color: 0xc9b08a })
+  );
+  aisle.rotation.x = -Math.PI/2;
+  aisle.receiveShadow = true;
+  aisle.position.set(0, 0.02, -90);
+  scene.add(aisle);
+
+  // Market entrance sign
+  function makeSignTexture(text){
+    const c = document.createElement("canvas");
+    c.width = 512; c.height = 256;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "rgba(17,17,17,0.92)";
+    ctx.fillRect(0,0,512,256);
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 34px system-ui";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(text, 256, 108);
+    ctx.font = "600 18px system-ui";
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.fillText("Redmond, WA • Sunny Day", 256, 168);
+    const tex = new THREE.CanvasTexture(c);
+    tex.anisotropy = 8;
+    return tex;
+  }
+
+  const entrance = new THREE.Mesh(
+    new THREE.BoxGeometry(6, 2.2, 0.25),
+    new THREE.MeshStandardMaterial({ map: makeSignTexture("Digital Flea Market") })
+  );
+  entrance.position.set(0, 1.4, 8);
+  entrance.castShadow = true;
+  scene.add(entrance);
+
+  // Trees (more refined)
+  function addTree(x,z){
+    const trunk = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.18,0.24,2.2,12),
+      new THREE.MeshStandardMaterial({ color: 0x6d4c2f })
+    );
+    trunk.position.set(x, 1.1, z);
+    trunk.castShadow = true;
+
+    const crown = new THREE.Mesh(
+      new THREE.SphereGeometry(1.35, 16, 12),
+      new THREE.MeshStandardMaterial({ color: 0x2f7d32 })
+    );
+    crown.position.set(x, 2.8, z);
+    crown.castShadow = true;
+
+    scene.add(trunk, crown);
+  }
+  for(let i=0;i<36;i++){
+    const x = (Math.random()*160)-80;
+    const z = (Math.random()*220)-190;
+    if (Math.abs(x) < 14 && z < 18 && z > -190) continue;
+    addTree(x, z);
+  }
+
+  // -------------------------
+  // Booths + interiors + products
+  // -------------------------
+  const boothGroup = new THREE.Group();
+  scene.add(boothGroup);
+
+  const minimapIcons = new THREE.Group();
+  scene.add(minimapIcons);
+
+  // Layers: main camera sees layer 0; minimap sees layer 0 + 1
+  camera.layers.set(0);
+
+  const minimapCam = new THREE.OrthographicCamera(-24, 24, 24, -24, 0.1, 900);
+  minimapCam.layers.enable(0);
+  minimapCam.layers.enable(1);
+
+  function labelSprite(text){
+    const c = document.createElement("canvas");
+    c.width = 512; c.height = 192;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "rgba(0,0,0,0.72)";
+    ctx.fillRect(0,0,512,192);
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 36px system-ui";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(text, 256, 96);
+    const tex = new THREE.CanvasTexture(c);
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent:true, depthTest:false });
+    const spr = new THREE.Sprite(mat);
+    spr.scale.set(6.6, 2.4, 1);
+    return spr;
+  }
+
+  const boothRefs = new Map();
+  const interactive = [];
+  const entryDoors = [];
+  const exitDoors = [];
+  const outdoorColliders = [];
+
+  const INTERIOR_ORIGIN = new THREE.Vector3(420, 0, 420);
+  const INTERIOR_SPACING = 52;
+  let insideBoothId = null;
+  let lastOutdoorPos = new THREE.Vector3(0, 1.7, 10);
+
+  const PLAYER_RADIUS = 0.5;
+
+  function addBooth(booth, idx){
+    const x = (booth.side === "left") ? -10 : 10;
+    const z = booth.z;
+    const colorHex = boothColorHex(booth);
+
+    const g = new THREE.Group();
+    g.position.set(x, 0, z);
+
+    // Tent legs
+    const legMat = new THREE.MeshStandardMaterial({ color: 0x7a5a34 });
+    const legGeo = new THREE.CylinderGeometry(0.06,0.06,1.7,10);
+    for (const [lx,lz] of [[-0.95,-0.95],[0.95,-0.95],[-0.95,0.95],[0.95,0.95]]){
+      const leg = new THREE.Mesh(legGeo, legMat);
+      leg.position.set(lx, 0.85, lz);
+      leg.castShadow = true;
+      g.add(leg);
+    }
+
+    // Table
+    const tableTop = new THREE.Mesh(
+      new THREE.BoxGeometry(2.0, 0.12, 1.0),
+      new THREE.MeshStandardMaterial({ color: 0x8b6a42 })
+    );
+    tableTop.position.set(0, 0.58, 0.15);
+    tableTop.castShadow = true;
+    tableTop.receiveShadow = true;
+    g.add(tableTop);
+
+    // Canopy
+    const canopy = new THREE.Mesh(
+      new THREE.ConeGeometry(1.75, 1.0, 4),
+      new THREE.MeshStandardMaterial({ color: colorHex })
+    );
+    canopy.position.set(0, 1.85, 0);
+    canopy.castShadow = true;
+    g.add(canopy);
+
+    // Backdrop
+    const back = new THREE.Mesh(
+      new THREE.BoxGeometry(2.2, 1.7, 0.14),
+      new THREE.MeshStandardMaterial({ color: 0xffffff })
+    );
+    back.position.set(0, 0.95, -1.05);
+    back.castShadow = true;
+    back.receiveShadow = true;
+    g.add(back);
+
+    // Sign (clickable)
+    const signTex = makeSignTexture(booth.name);
+    const sign = new THREE.Mesh(
+      new THREE.BoxGeometry(2.2, 0.6, 0.08),
+      new THREE.MeshStandardMaterial({ map: signTex })
+    );
+    sign.position.set(0, 1.45, 1.25);
+    sign.castShadow = true;
+    sign.userData = { type:"booth", boothId: booth.id };
+    g.add(sign);
+    interactive.push(sign);
+
+    // Doorway marker
+    const door = new THREE.Mesh(
+      new THREE.BoxGeometry(1.5, 2.2, 0.12),
+      new THREE.MeshStandardMaterial({ color: 0x111111 })
+    );
+    door.position.set(0, 1.1, 0.75);
+    door.castShadow = true;
+    g.add(door);
+
+    // Mat
+    const mat = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.8, 1.0),
+      new THREE.MeshStandardMaterial({ color: 0x2b2b2b })
+    );
+    mat.rotation.x = -Math.PI/2;
+    mat.position.set(0, 0.02, 1.35);
+    mat.receiveShadow = true;
+    g.add(mat);
+
+    boothGroup.add(g);
+
+    // Entry door position (world)
+    entryDoors.push({ boothId: booth.id, worldPos: new THREE.Vector3(x, 1.0, z + 1.35) });
+
+    // Collider (AABB)
+    scene.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(g).expandByScalar(PLAYER_RADIUS);
+    outdoorColliders.push({ boothId: booth.id, box });
+
+    // Minimap icon + label (layer 1 only)
+    const icon = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.5, 0.5, 0.25, 14),
+      new THREE.MeshBasicMaterial({ color: colorHex })
+    );
+    icon.position.set(x, 0.2, z);
+    icon.layers.set(1);
+    minimapIcons.add(icon);
+
+    const label = labelSprite(booth.name);
+    label.position.set(x, 3.0, z);
+    label.layers.set(1);
+    minimapIcons.add(label);
+
+    // Interior
+    const ix = INTERIOR_ORIGIN.x + idx * INTERIOR_SPACING;
+    const iz = INTERIOR_ORIGIN.z;
+
+    const interior = new THREE.Group();
+    interior.position.set(ix, 0, iz);
+
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(14, 14),
+      new THREE.MeshStandardMaterial({ color: 0xeee8dd })
+    );
+    floor.rotation.x = -Math.PI/2;
+    floor.receiveShadow = true;
+    interior.add(floor);
+
+    const wallMat = new THREE.MeshStandardMaterial({ color: colorHex });
+    const wallBack = new THREE.Mesh(new THREE.BoxGeometry(14, 3.2, 0.25), wallMat);
+    wallBack.position.set(0, 1.6, -7);
+    wallBack.castShadow = true; wallBack.receiveShadow = true;
+    interior.add(wallBack);
+
+    const wallLeft = new THREE.Mesh(new THREE.BoxGeometry(0.25, 3.2, 14), wallMat);
+    wallLeft.position.set(-7, 1.6, 0);
+    wallLeft.castShadow = true; wallLeft.receiveShadow = true;
+    interior.add(wallLeft);
+
+    const wallRight = new THREE.Mesh(new THREE.BoxGeometry(0.25, 3.2, 14), wallMat);
+    wallRight.position.set(7, 1.6, 0);
+    wallRight.castShadow = true; wallRight.receiveShadow = true;
+    interior.add(wallRight);
+
+    const warm = new THREE.PointLight(0xfff2d6, 1.25, 45);
+    warm.position.set(0, 2.8, 0);
+    interior.add(warm);
+
+    // Product shelf
+    const shelf = new THREE.Mesh(
+      new THREE.BoxGeometry(11.5, 0.25, 1.0),
+      new THREE.MeshStandardMaterial({ color: 0x8b6a42 })
+    );
+    shelf.position.set(0, 1.1, -2.4);
+    shelf.castShadow = true; shelf.receiveShadow = true;
+    interior.add(shelf);
+
+    const pxs = [-3.2, 0, 3.2];
+    (booth.products||[]).slice(0,3).forEach((prod, i)=>{
+      const item = new THREE.Mesh(
+        new THREE.BoxGeometry(1.1, 0.7, 1.1),
+        new THREE.MeshStandardMaterial({ color: [0xffd56a, 0xaad7ff, 0xd6ffa5][i%3] })
+      );
+      item.position.set(pxs[i], 1.55, -2.4);
+      item.castShadow = true; item.receiveShadow = true;
+      item.userData = { type:"product", boothId: booth.id, productIndex: i };
+      interior.add(item);
+      interactive.push(item);
+
+      const tag = labelSprite(prod.name);
+      tag.scale.set(5.2, 1.9, 1);
+      tag.position.set(pxs[i], 2.55, -2.4);
+      tag.userData = { type:"product", boothId: booth.id, productIndex: i };
+      interior.add(tag);
+      interactive.push(tag);
+    });
+
+    // Exit door
+    const exitDoor = new THREE.Mesh(
+      new THREE.BoxGeometry(2.2, 2.4, 0.25),
+      new THREE.MeshStandardMaterial({ color: 0x111111 })
+    );
+    exitDoor.position.set(0, 1.2, 6.2);
+    exitDoor.castShadow = true;
+    interior.add(exitDoor);
+
+    exitDoors.push({ boothId: booth.id, worldPos: new THREE.Vector3(ix, 1.0, iz + 6.0) });
+
+    scene.add(interior);
+
+    boothRefs.set(booth.id, { booth, outdoorGroup: g, minimapIcon: icon, minimapLabel: label, interiorGroup: interior, interiorPos:{ix, iz} });
+  }
+
+  BOOTHS.forEach(addBooth);
+
+  // -------------------------
+  // Minimap marker (player)
+  // -------------------------
+  const marker = new THREE.Mesh(
+    new THREE.ConeGeometry(0.45, 1.1, 12),
+    new THREE.MeshStandardMaterial({ color: 0xff3333 })
+  );
+  marker.rotation.x = Math.PI;
+  marker.layers.set(1);
+  scene.add(marker);
+
+  function updateMinimap(){
+    const player = controls.getObject();
+
+    marker.position.set(player.position.x, 0.6, player.position.z);
+    marker.rotation.y = player.rotation.y;
+
+    const size = 26;
+    minimapCam.left = -size;
+    minimapCam.right = size;
+    minimapCam.top = size;
+    minimapCam.bottom = -size;
+    minimapCam.updateProjectionMatrix();
+
+    minimapCam.position.set(player.position.x, 80, player.position.z);
+    minimapCam.lookAt(player.position.x, 0, player.position.z);
+  }
+
+  // -------------------------
+  // Filtering + results list
+  // -------------------------
+  function applyFilters(){
+    const matches = [];
+
+    for (const booth of BOOTHS){
+      const ref = boothRefs.get(booth.id);
+      if (!ref) continue;
+
+      const ok = boothMatches(booth);
+      ref.outdoorGroup.visible = ok;
+      ref.minimapIcon.visible = ok;
+      ref.minimapLabel.visible = ok;
+
+      if (ok) matches.push(booth);
+    }
+
+    matchCountEl.textContent = `${matches.length} match${matches.length===1?"":"es"}`;
+    resultsEl.innerHTML = "";
+
+    matches.forEach(b=>{
+      const div = document.createElement("div");
+      div.className = "resultItem";
+      div.innerHTML = `<div class="name">${b.name}</div><div class="meta">${(b.categories||[]).join(", ")}</div>`;
+      div.onclick = ()=>{
+        // move player near that booth (outdoors)
+        if (insideBoothId) teleportToOutdoor();
+        const x = (b.side==="left") ? -6 : 6;
+        controls.getObject().position.set(x, 1.7, b.z + 8);
+      };
+      resultsEl.appendChild(div);
+    });
+  }
+
+  function boothMatches(booth){
+    const catOK = (booth.categories||[]).some(c=>activeCats.has(c));
+    if (!catOK) return false;
+
+    if (!searchTerm) return true;
+    const hay = [
+      booth.name, booth.desc, ...(booth.categories||[]),
+      ...((booth.products||[]).map(p=>p.name))
+    ].join(" ").toLowerCase();
+    return hay.includes(searchTerm);
+  }
+
+  renderChips();
+  applyFilters();
+
+  // -------------------------
+  // Booth + product modals
+  // -------------------------
+  const boothOverlay = document.getElementById("boothOverlay");
+  const closeBooth = document.getElementById("closeBooth");
+  const bTitle = document.getElementById("bTitle");
+  const bDesc = document.getElementById("bDesc");
+  const bLinks = document.getElementById("bLinks");
+  const bProducts = document.getElementById("bProducts");
+
+  function openBoothModal(boothId){
+    const ref = boothRefs.get(boothId);
+    if (!ref) return;
+    const booth = ref.booth;
+
+    bTitle.textContent = booth.name;
+    bDesc.textContent = booth.desc;
+
+    bLinks.innerHTML = "";
+    (booth.links||[]).forEach(l=>{
+      const a = document.createElement("a");
+      a.className = "pill";
+      a.href = l.url;
+      a.target="_blank";
+      a.rel="noopener noreferrer";
+      a.textContent = l.label;
+      bLinks.appendChild(a);
+    });
+
+    bProducts.innerHTML = "";
+    const prods = booth.products || [];
+    if (prods.length){
+      const grid = document.createElement("div");
+      grid.className = "prodGrid";
+      prods.forEach(p=>{
+        const card = document.createElement("div");
+        card.className = "prodCard";
+        card.innerHTML = `<div class="name">${p.name}</div><div class="price">${p.price||""}</div><a href="${p.url}" target="_blank" rel="noopener noreferrer">Buy / Visit</a>`;
+        grid.appendChild(card);
+      });
+      bProducts.appendChild(grid);
+    }
+
+    boothOverlay.style.display = "flex";
+    try { controls.unlock(); } catch {}
+  }
+
+  closeBooth.onclick = ()=> boothOverlay.style.display = "none";
+  boothOverlay.addEventListener("click", (e)=>{ if (e.target === boothOverlay) boothOverlay.style.display="none"; });
+
+  const productOverlay = document.getElementById("productOverlay");
+  const closeProduct = document.getElementById("closeProduct");
+  const pTitle = document.getElementById("pTitle");
+  const pFrom = document.getElementById("pFrom");
+  const pPrice = document.getElementById("pPrice");
+  const pBuy = document.getElementById("pBuy");
+  const pOpenBooth = document.getElementById("pOpenBooth");
+  let lastProductBoothId = null;
+
+  function openProductModal(boothId, productIndex){
+    const ref = boothRefs.get(boothId);
+    if (!ref) return;
+    const booth = ref.booth;
+    const product = (booth.products||[])[productIndex];
+    if (!product) return;
+
+    lastProductBoothId = boothId;
+    pTitle.textContent = product.name;
+    pFrom.textContent = `From: ${booth.name}`;
+    pPrice.textContent = product.price ? `Price: ${product.price}` : "";
+    pBuy.href = product.url || "#";
+
+    productOverlay.style.display = "flex";
+    try { controls.unlock(); } catch {}
+  }
+
+  closeProduct.onclick = ()=> productOverlay.style.display = "none";
+  productOverlay.addEventListener("click", (e)=>{ if (e.target === productOverlay) productOverlay.style.display="none"; });
+  pOpenBooth.onclick = ()=> { if (lastProductBoothId) openBoothModal(lastProductBoothId); };
+
+  // -------------------------
+  // Raycast for clicking signs/products
+  // -------------------------
+  const raycaster = new THREE.Raycaster();
+  const screenCenter = new THREE.Vector2(0,0);
+  let lookedHit = null;
+
+  function updateRaycast(){
+    raycaster.setFromCamera(screenCenter, camera);
+    const hits = raycaster.intersectObjects(interactive, true);
+    lookedHit = hits.length ? hits[0] : null;
+  }
+
+  // -------------------------
+  // Movement + pointer lock reliability
+  // -------------------------
+  let isPlaying = false;
+  let autopilot = true;
+
+  const velocity = new THREE.Vector3();
+  const direction = new THREE.Vector3();
+  const move = { f:false, b:false, l:false, r:false, sprint:false };
+
+  const clock = new THREE.Clock();
+
+  function autopilotWalk(dt){
+    const obj = controls.getObject();
+    obj.position.z -= 2.2 * dt;
+    obj.position.x = Math.sin(performance.now()*0.0012) * 0.2;
+    obj.rotation.y = 0;
+    camera.rotation.x = 0;
+  }
+
+  function resetPlayer(){
+    insideBoothId = null;
+    controls.getObject().position.set(0, 1.7, 10);
+    controls.getObject().rotation.y = 0;
+    camera.rotation.x = 0;
+    velocity.set(0,0,0);
+  }
+
+  // roam bounds (free roam)
+  const ROAM = { minX:-120, maxX:120, minZ:-260, maxZ:40 };
+  function clampRoam(){
+    const p = controls.getObject().position;
+    p.x = THREE.MathUtils.clamp(p.x, ROAM.minX, ROAM.maxX);
+    p.z = THREE.MathUtils.clamp(p.z, ROAM.minZ, ROAM.maxZ);
+    p.y = 1.7;
+  }
+
+  function resolveOutdoorCollision(prevPos){
+    if (insideBoothId) return;
+    const p = controls.getObject().position;
+    const sphere = new THREE.Sphere(p, PLAYER_RADIUS);
+    for (const c of outdoorColliders){
+      // ignore colliders for hidden booths
+      const ref = boothRefs.get(c.boothId);
+      if (!ref || !ref.outdoorGroup.visible) continue;
+      if (c.box.intersectsSphere(sphere)){
+        controls.getObject().position.copy(prevPos);
+        velocity.set(0,0,0);
+        return;
+      }
+    }
+  }
+
+  document.addEventListener("keydown", (e)=>{
+    if (e.code==="KeyW") move.f=true;
+    if (e.code==="KeyS") move.b=true;
+    if (e.code==="KeyA") move.l=true;
+    if (e.code==="KeyD") move.r=true;
+    if (e.code==="ShiftLeft" || e.code==="ShiftRight") move.sprint=true;
+
+    // Reset hotkey always works
+    if (e.code==="KeyR"){
+      resetPlayer();
+      // re-lock if currently playing
+      if (isPlaying && !controls.isLocked) controls.lock();
+    }
+
+    // Enter/Exit
+    if (e.code==="KeyE" && isPlaying){
+      const d = nearestDoor();
+      if (d.type==="enter" && d.dist < 2.4) teleportToInterior(d.boothId);
+    }
+    if (e.code==="KeyQ" && isPlaying){
+      const d = nearestDoor();
+      if (d.type==="exit" && d.dist < 3.2) teleportToOutdoor();
+    }
+  });
+  document.addEventListener("keyup", (e)=>{
+    if (e.code==="KeyW") move.f=false;
+    if (e.code==="KeyS") move.b=false;
+    if (e.code==="KeyA") move.l=false;
+    if (e.code==="KeyD") move.r=false;
+    if (e.code==="ShiftLeft" || e.code==="ShiftRight") move.sprint=false;
+  });
+
+  // Click anywhere on the scene to re-lock if lost
+  document.addEventListener("mousedown", (e)=>{
+    // If clicking UI, ignore
+    const isUI = e.target.closest?.("#topbar, #leftPanel, #boothOverlay, #productOverlay");
+    if (isUI) return;
+
+    if (isPlaying && !controls.isLocked){
+      controls.lock();
+      return;
+    }
+
+    // If locked and crosshair hit is close enough, open modals
+    if (isPlaying && controls.isLocked){
+      if (!lookedHit) return;
+      if (lookedHit.distance > 5.0) return;
+      const ud = lookedHit.object.userData || {};
+      if (ud.type==="booth") openBoothModal(ud.boothId);
+      if (ud.type==="product") openProductModal(ud.boothId, ud.productIndex);
+    }
+  });
+
+  // -------------------------
+  // Doors / interiors
+  // -------------------------
+  const actionPrompt = document.getElementById("actionPrompt");
+
+  function nearestDoor(){
+    const p = controls.getObject().position;
