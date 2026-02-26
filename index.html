@@ -54,7 +54,7 @@
     /* Hint */
     #hint {
       position:fixed; left:12px; bottom:12px;
-      max-width:min(760px, calc(100vw - 24px));
+      max-width:min(820px, calc(100vw - 24px));
       pointer-events:none;
       color:#fff;
       background: rgba(0,0,0,0.55);
@@ -81,7 +81,7 @@
       z-index: 15;
     }
 
-    /* Minimap frame overlay (the actual minimap is rendered into WebGL viewport) */
+    /* Minimap frame overlay (minimap itself is rendered via WebGL viewport) */
     #minimapFrame {
       position:fixed;
       top:70px; right:14px;
@@ -113,7 +113,7 @@
       pointer-events:auto;
     }
     #startPanel{
-      width:min(580px, calc(100vw - 24px));
+      width:min(620px, calc(100vw - 24px));
       background: rgba(255,255,255,0.92);
       border-radius: 18px;
       padding: 16px;
@@ -128,7 +128,7 @@
       cursor:pointer;
     }
 
-    /* Modal storefront */
+    /* Booth info modal */
     #modalOverlay{
       position:fixed; inset:0; background: rgba(0,0,0,0.6);
       display:none; align-items:center; justify-content:center;
@@ -153,6 +153,30 @@
       display:inline-block; padding:8px 10px; border-radius:999px;
       background: rgba(0,0,0,0.06);
       text-decoration:none; color:#111; font-size:14px;
+    }
+
+    /* Product modal */
+    #productOverlay{
+      position:fixed; inset:0; background: rgba(0,0,0,0.65);
+      display:none; align-items:center; justify-content:center;
+      z-index: 65;
+      pointer-events:auto;
+      padding: 14px;
+    }
+    #productModal{
+      width:min(720px, calc(100vw - 24px));
+      background: rgba(255,255,255,0.96);
+      border-radius: 18px;
+      padding: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+    }
+    #productModal h3{ margin:0; }
+    #productModal .meta{ margin-top:6px; opacity:0.75; }
+    #productModal .actions{ margin-top:12px; display:flex; gap:10px; flex-wrap:wrap; }
+    .primaryBtn{
+      border:0; border-radius:12px; padding:10px 12px;
+      background:#111; color:#fff; cursor:pointer;
+      text-decoration:none; display:inline-block;
     }
 
     /* Mobile controls */
@@ -251,7 +275,7 @@
     <div id="topbar">
       <div class="card">
         <div class="title">Redmond Digital Flea Market</div>
-        <div class="sub">FREE ROAM • Mini‑map • Enter booths • Outdoor ambience</div>
+        <div class="sub">FREE ROAM • Mini‑map w/ booth labels • Enter booths • Click products inside</div>
       </div>
       <div style="display:flex; gap:10px; align-items:center;">
         <button class="btn" id="helpBtn">Help</button>
@@ -264,13 +288,14 @@
     <div id="minimapFrame"></div>
 
     <div id="crosshair"></div>
-
     <div id="actionPrompt"></div>
 
     <div id="hint">
-      <b>Desktop:</b> Start → mouse-look + WASD. <b>E</b> enter booth • <b>Q</b> exit booth • Click booth sign to open info.
+      <b>Desktop:</b> Start → mouse-look + WASD. <b>E</b> enter booth • <b>Q</b> exit booth • Click sign/products to open links.
       <br/>
-      <b>Mobile:</b> Joystick move • Swipe right side to look • Tap <b>ENTER</b> near doorway • Tap <b>EXIT</b> inside.
+      <b>Mobile:</b> Joystick move • Swipe right side to look • Tap <b>INTERACT</b> • Tap <b>ENTER</b> near doorway • Tap <b>EXIT</b> inside.
+      <br/>
+      <b>Mini‑map:</b> You = red arrow. Booth icons + names show nearby.
     </div>
 
     <!-- Mobile -->
@@ -290,6 +315,7 @@
         <h2>Enter the Market (3D)</h2>
         <p>
           Desktop uses first‑person mouse look. Mobile uses joystick + swipe-to-look.
+          Inside booths, click the <b>products</b> to open “Buy/Visit” links.
         </p>
         <div class="row">
           <button class="primary" id="startBtn">Start (Desktop)</button>
@@ -301,7 +327,7 @@
       </div>
     </div>
 
-    <!-- Storefront modal -->
+    <!-- Booth info modal -->
     <div id="modalOverlay">
       <div id="modal">
         <div id="modalHeader">
@@ -317,276 +343,7 @@
         </div>
       </div>
     </div>
-  </div>
 
-<script type="module">
-  import * as THREE from "three";
-  import { PointerLockControls } from "three/addons/controls/PointerLockControls.js";
-
-  // ---------------------------------
-  // Booth list (real Redmond examples)
-  // ---------------------------------
-  const BOOTHS = [
-    { id:"vala", name:"VALA Art Center", desc:"Local arts nonprofit in Redmond with exhibits and events.",
-      links:[ {label:"Visit Website", url:"https://www.valaeastside.org/"}, {label:"City Info", url:"https://www.redmond.gov/2032/VALA"} ],
-      side:"left",  z:-14, color:0xf2d4d7
-    },
-    { id:"eastsidepottery", name:"Eastside Pottery", desc:"Pottery studio with memberships, workshops, and open studio.",
-      links:[ {label:"Visit Website", url:"https://www.eastsidepottery.com/"}, {label:"Listing", url:"https://experienceredmond.com/business/eastside-pottery/"} ],
-      side:"right", z:-22, color:0xd8e8ff
-    },
-    { id:"redmondartworks", name:"Redmond Art Works", desc:"Community art studio near Marymoor Park with classes & open studio.",
-      links:[ {label:"Visit Website", url:"https://www.redmondartworks.com/category-s/197.htm"}, {label:"Listing", url:"https://ceramic.school/places/redmond-art-works/"} ],
-      side:"left",  z:-30, color:0xe9f7d9
-    },
-    { id:"paintaway", name:"Paint Away!", desc:"Ceramics painting & glass fusing studio in Redmond Town Center.",
-      links:[ {label:"Visit Website", url:"https://paintawaynow.com/"} ],
-      side:"right", z:-38, color:0xfff2cc
-    },
-    { id:"utopia", name:"Utopia (Redmond Town Center)", desc:"Jewelry & gift ideas at Redmond Town Center.",
-      links:[ {label:"Directory Listing", url:"https://redmondtowncenter.com/directory/utopia"}, {label:"Handcrafted Gifts Info", url:"https://utopianorthwest.com/pages/handcrafted-jewelry-redmond-wa-98052"} ],
-      side:"left",  z:-46, color:0xe6ddff
-    },
-    { id:"brugge", name:"Brugge Chocolates", desc:"European-style artisan truffles handcrafted in Redmond, WA.",
-      links:[ {label:"Shop / Visit", url:"https://www.bruggechocolates.com/"} ],
-      side:"right", z:-54, color:0xd9f3ff
-    }
-  ];
-
-  // -------------------------
-  // 1) Renderer / Scene / Cameras
-  // -------------------------
-  const canvas = document.getElementById("c");
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-  renderer.setSize(innerWidth, innerHeight);
-  renderer.shadowMap.enabled = true;
-  renderer.autoClear = false;
-
-  const scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(0x87ceeb, 18, 180);
-
-  // Sky dome
-  scene.add(new THREE.Mesh(
-    new THREE.SphereGeometry(260, 32, 16),
-    new THREE.MeshBasicMaterial({ color: 0x87ceeb, side: THREE.BackSide })
-  ));
-
-  const camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.1, 400);
-  camera.position.set(0, 1.7, 6);
-
-  // Minimap camera (top-down)
-  const minimapCam = new THREE.OrthographicCamera(-18, 18, 18, -18, 0.1, 500);
-  minimapCam.up.set(0,0,-1);
-  minimapCam.lookAt(new THREE.Vector3(0,0,0));
-
-  // Lights
-  const sun = new THREE.DirectionalLight(0xffffff, 1.15);
-  sun.position.set(10, 18, 10);
-  sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
-  sun.shadow.camera.near = 1;
-  sun.shadow.camera.far = 110;
-  sun.shadow.camera.left = -40;
-  sun.shadow.camera.right = 40;
-  sun.shadow.camera.top = 40;
-  sun.shadow.camera.bottom = -40;
-  scene.add(sun);
-  scene.add(new THREE.AmbientLight(0xffffff, 0.45));
-
-  // Ground
-  const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(240, 240),
-    new THREE.MeshStandardMaterial({ color: 0x6fbf73 })
-  );
-  ground.rotation.x = -Math.PI/2;
-  ground.receiveShadow = true;
-  ground.position.set(0, 0, -60);
-  scene.add(ground);
-
-  // Aisle landmark (optional)
-  const aisle = new THREE.Mesh(
-    new THREE.PlaneGeometry(5.0, 140),
-    new THREE.MeshStandardMaterial({ color: 0xc9b08a })
-  );
-  aisle.rotation.x = -Math.PI/2;
-  aisle.receiveShadow = true;
-  aisle.position.set(0, 0.01, -65);
-  scene.add(aisle);
-
-  // Trees for ambience
-  function addTree(x, z){
-    const trunk = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.14,0.22,1.8,10),
-      new THREE.MeshStandardMaterial({ color: 0x6d4c2f })
-    );
-    trunk.position.set(x, 0.9, z);
-    trunk.castShadow = true;
-
-    const crown = new THREE.Mesh(
-      new THREE.SphereGeometry(1.0, 14, 10),
-      new THREE.MeshStandardMaterial({ color: 0x2f7d32 })
-    );
-    crown.position.set(x, 2.2, z);
-    crown.castShadow = true;
-
-    scene.add(trunk, crown);
-  }
-  for (let i=0; i<26; i++){
-    const x = (Math.random() * 120) - 60;
-    const z = (Math.random() * 170) - 140;
-    if (Math.abs(x) < 10 && z < 10 && z > -140) continue;
-    addTree(x, z);
-  }
-
-  // -------------------------
-  // 2) Controls + Movement
-  // -------------------------
-  const controls = new PointerLockControls(camera, document.body);
-  scene.add(controls.getObject());
-
-  let isPlaying = false;
-  let isMobile = false;
-
-  const velocity = new THREE.Vector3();
-  const direction = new THREE.Vector3();
-  const move = { forward:false, back:false, left:false, right:false };
-  const clock = new THREE.Clock();
-
-  // Free roam bounds
-  const ROAM = { minX:-70, maxX:70, minZ:-170, maxZ:30 };
-  const PLAYER_RADIUS = 0.45;
-
-  function clampToRoamBounds(){
-    const obj = controls.getObject();
-    obj.position.x = THREE.MathUtils.clamp(obj.position.x, ROAM.minX, ROAM.maxX);
-    obj.position.z = THREE.MathUtils.clamp(obj.position.z, ROAM.minZ, ROAM.maxZ);
-    obj.position.y = 1.7;
-  }
-
-  // Keyboard movement
-  function onKey(e, down){
-    if (!isPlaying || isMobile) return;
-    switch(e.code){
-      case "KeyW":
-      case "ArrowUp": move.forward = down; break;
-      case "KeyS":
-      case "ArrowDown": move.back = down; break;
-      case "KeyA":
-      case "ArrowLeft": move.left = down; break;
-      case "KeyD":
-      case "ArrowRight": move.right = down; break;
-    }
-  }
-  addEventListener("keydown", e => onKey(e, true));
-  addEventListener("keyup", e => onKey(e, false));
-
-  // -------------------------
-  // 3) Booths + Doors + Interiors
-  // -------------------------
-  const boothGroup = new THREE.Group();
-  scene.add(boothGroup);
-
-  const interactiveSigns = [];       // click to open info
-  const boothGroups = [];            // for collision
-  const colliders = [];              // AABB collision boxes
-
-  // Door triggers (outside) and exit triggers (inside)
-  const entryDoors = []; // { booth, pos:Vector3 }
-  const exitDoors = [];  // { booth, pos:Vector3 }
-
-  // Interior positions far away from outdoor area (so minimap doesn't show it)
-  const INTERIOR_ORIGIN = new THREE.Vector3(420, 0, 420);
-  const INTERIOR_SPACING = 40;
-
-  // State: inside which booth?
-  let insideBoothId = null;
-  let lastOutdoorPos = new THREE.Vector3(0,1.7,6);
-
-  function makeTextTexture(text){
-    const cnv = document.createElement("canvas");
-    cnv.width = 512; cnv.height = 256;
-    const ctx = cnv.getContext("2d");
-    ctx.fillStyle = "rgba(20,20,20,0.92)";
-    ctx.fillRect(0,0,cnv.width,cnv.height);
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 44px system-ui";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(text, cnv.width/2, cnv.height/2);
-    const tex = new THREE.CanvasTexture(cnv);
-    tex.anisotropy = 8;
-    return tex;
-  }
-
-  function addBooth(b, idx){
-    const x = (b.side === "left") ? -10 : 10;
-    const z = b.z;
-
-    const g = new THREE.Group();
-    g.position.set(x, 0, z);
-
-    // Tent legs
-    const legMat = new THREE.MeshStandardMaterial({ color: 0x7a5a34 });
-    const legGeo = new THREE.CylinderGeometry(0.05,0.05,1.5,10);
-    for (const [lx,lz] of [[-0.9,-0.9],[0.9,-0.9],[-0.9,0.9],[0.9,0.9]]){
-      const leg = new THREE.Mesh(legGeo, legMat);
-      leg.position.set(lx, 0.75, lz);
-      leg.castShadow = true;
-      g.add(leg);
-    }
-
-    // Table
-    const tableTop = new THREE.Mesh(
-      new THREE.BoxGeometry(1.8, 0.1, 0.9),
-      new THREE.MeshStandardMaterial({ color: 0x8b6a42 })
-    );
-    tableTop.position.set(0, 0.55, 0.15);
-    tableTop.castShadow = true;
-    tableTop.receiveShadow = true;
-    g.add(tableTop);
-
-    // Canopy
-    const canopy = new THREE.Mesh(
-      new THREE.ConeGeometry(1.55, 0.9, 4),
-      new THREE.MeshStandardMaterial({ color: b.color })
-    );
-    canopy.position.set(0, 1.65, 0);
-    canopy.castShadow = true;
-    g.add(canopy);
-
-    // Backdrop
-    const back = new THREE.Mesh(
-      new THREE.BoxGeometry(2.0, 1.55, 0.12),
-      new THREE.MeshStandardMaterial({ color: 0xffffff })
-    );
-    back.position.set(0, 0.9, -0.95);
-    back.castShadow = true;
-    back.receiveShadow = true;
-    g.add(back);
-
-    // Sign board (click opens info modal)
-    const sign = new THREE.Mesh(
-      new THREE.BoxGeometry(1.9, 0.55, 0.07),
-      new THREE.MeshStandardMaterial({ map: makeTextTexture(b.name) })
-    );
-    sign.position.set(0, 1.35, 1.15);
-    sign.castShadow = true;
-    sign.userData.booth = b;
-    g.add(sign);
-    interactiveSigns.push(sign);
-
-    // Doorway marker (outside entry point)
-    const door = new THREE.Mesh(
-      new THREE.BoxGeometry(1.4, 2.1, 0.1),
-      new THREE.MeshStandardMaterial({ color: 0x111111 })
-    );
-    door.position.set(0, 1.05, 0.65);
-    door.castShadow = true;
-    g.add(door);
-
-    // Soft “welcome mat” to hint entry zone
-    const mat = new THREE.Mesh(
-      new THREE.PlaneGeometry(1.6, 0.9),
-      new THREE.MeshStandardMaterial({ color: 0x2b2b2b })
-    );
+    <!-- Product modal -->
+    <div id="productOverlay">
+      <div id="productModal">
