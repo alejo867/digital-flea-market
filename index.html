@@ -1,130 +1,340 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<title>Redmond Digital Flea Market</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>Redmond Digital Flea Market (3D Walkthrough)</title>
+  <style>
+    html, body { margin:0; height:100%; overflow:hidden; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; background:#87ceeb; }
+    #ui { position:fixed; inset:0; pointer-events:none; }
+    #topbar {
+      pointer-events:auto;
+      position:fixed; left:12px; right:12px; top:12px;
+      display:flex; gap:10px; align-items:center; justify-content:space-between;
+    }
+    .card {
+      background: rgba(255,255,255,0.88);
+      backdrop-filter: blur(8px);
+      border-radius: 14px;
+      padding: 10px 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.18);
+    }
+    .title { font-weight: 900; }
+    .sub { font-size:12px; opacity:0.8; margin-top:2px; }
+    .btn {
+      border:0; border-radius:12px; padding:10px 12px;
+      background: rgba(255,255,255,0.88);
+      backdrop-filter: blur(8px);
+      cursor:pointer;
+    }
 
-<style>
-body {
-  margin: 0;
-  font-family: system-ui, sans-serif;
-  background: #87ceeb;
-  overflow: hidden;
-}
+    /* Crosshair */
+    #crosshair {
+      position:fixed; left:50%; top:50%;
+      transform: translate(-50%,-50%);
+      width: 14px; height: 14px;
+      border: 2px solid rgba(255,255,255,0.95);
+      border-radius: 999px;
+      box-shadow: 0 0 0 2px rgba(0,0,0,0.15);
+      pointer-events:none;
+      opacity:0.9;
+    }
+    #crosshair::after{
+      content:"";
+      position:absolute; left:50%; top:50%;
+      transform:translate(-50%,-50%);
+      width:4px; height:4px;
+      background: rgba(255,255,255,0.95);
+      border-radius:999px;
+    }
 
-#scene {
-  position: fixed;
-  inset: 0;
-  background: linear-gradient(#87ceeb, #bde0fe);
-}
+    /* Hint */
+    #hint {
+      position:fixed; left:12px; bottom:12px;
+      max-width:min(720px, calc(100vw - 24px));
+      pointer-events:none;
+      color:#fff;
+      background: rgba(0,0,0,0.55);
+      border-radius: 14px;
+      padding: 10px 12px;
+      line-height: 1.25rem;
+      font-size: 14px;
+    }
+    #hint b { color: #ffe58a; }
 
-.aisle {
-  position: absolute;
-  width: 300px;
-  height: 5000px;
-  background: #c9b08a;
-  left: 50%;
-  transform: translateX(-50%);
-}
+    /* Start overlay for desktop pointer-lock */
+    #startOverlay {
+      position:fixed; inset:0;
+      display:flex; align-items:center; justify-content:center;
+      background: rgba(0,0,0,0.55);
+      z-index: 50;
+      pointer-events:auto;
+    }
+    #startPanel{
+      width:min(560px, calc(100vw - 24px));
+      background: rgba(255,255,255,0.92);
+      border-radius: 18px;
+      padding: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+    }
+    #startPanel h2 { margin:0 0 8px; }
+    #startPanel p { margin: 8px 0; opacity:0.85; }
+    #startPanel .row { display:flex; gap:10px; flex-wrap:wrap; }
+    #startPanel .primary {
+      background:#111; color:#fff;
+      padding: 10px 12px; border-radius: 12px; border:0;
+      cursor:pointer;
+    }
 
-.booth {
-  position: absolute;
-  width: 160px;
-  height: 120px;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 8px 20px rgba(0,0,0,0.25);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-}
+    /* Modal storefront */
+    #modalOverlay{
+      position:fixed; inset:0; background: rgba(0,0,0,0.6);
+      display:none; align-items:center; justify-content:center;
+      z-index: 60;
+      pointer-events:auto;
+      padding: 14px;
+    }
+    #modal{
+      width:min(980px, calc(100vw - 24px));
+      max-height:min(86vh, 900px);
+      overflow:auto;
+      background: rgba(255,255,255,0.94);
+      border-radius: 18px;
+      padding: 16px;
+      backdrop-filter: blur(10px);
+    }
+    #modalHeader{ display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+    #modalHeader h2{ margin:0; }
+    #modalHeader p{ margin:8px 0 0; opacity:0.8; }
+    .pills { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+    .pill {
+      display:inline-block; padding:8px 10px; border-radius:999px;
+      background: rgba(0,0,0,0.06);
+      text-decoration:none; color:#111; font-size:14px;
+    }
 
-.booth.left { left: calc(50% - 260px); }
-.booth.right { left: calc(50% + 100px); }
+    /* Mobile controls */
+    #mobileControls{
+      position:fixed; inset:0;
+      display:none;
+      z-index: 40;
+      pointer-events:none;
+    }
+    #joystickWrap{
+      position:fixed; left:16px; bottom:18px;
+      width:140px; height:140px;
+      pointer-events:auto;
+      touch-action:none;
+      display:flex; align-items:center; justify-content:center;
+      opacity:0.95;
+    }
+    #joyBase{
+      width:120px; height:120px; border-radius:999px;
+      background: rgba(255,255,255,0.22);
+      border: 2px solid rgba(255,255,255,0.45);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.20);
+      position:relative;
+    }
+    #joyStick{
+      width:54px; height:54px; border-radius:999px;
+      background: rgba(255,255,255,0.72);
+      border: 2px solid rgba(0,0,0,0.12);
+      position:absolute; left:50%; top:50%;
+      transform: translate(-50%,-50%);
+    }
+    #interactBtn{
+      position:fixed; right:16px; bottom:30px;
+      pointer-events:auto;
+      background: rgba(255,255,255,0.88);
+      border:0; border-radius: 16px;
+      padding: 14px 14px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.20);
+      font-weight: 800;
+      touch-action: manipulation;
+    }
+    #lookHint{
+      position:fixed; right:16px; bottom:84px;
+      pointer-events:none;
+      color:#fff;
+      background: rgba(0,0,0,0.45);
+      border-radius: 12px;
+      padding: 8px 10px;
+      font-size: 12px;
+      max-width: 210px;
+      line-height: 1.1rem;
+    }
+  </style>
 
-#popup {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.6);
-  display: none;
-  align-items: center;
-  justify-content: center;
-}
-
-#popupContent {
-  background: white;
-  padding: 20px;
-  border-radius: 16px;
-  max-width: 420px;
-  width: 90%;
-}
-
-button {
-  padding: 10px 14px;
-  border-radius: 10px;
-  border: none;
-  background: #111;
-  color: white;
-  cursor: pointer;
-}
-</style>
+  <!-- Three.js as ES modules -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.165.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.165.0/examples/jsm/"
+      }
+    }
+  </script>
 </head>
 
 <body>
+  <canvas id="c"></canvas>
 
-<div id="scene">
-  <div class="aisle"></div>
+  <div id="ui">
+    <div id="topbar">
+      <div class="card">
+        <div class="title">Redmond Digital Flea Market</div>
+        <div class="sub">Walk the aisle • Look around • Visit booths • Support local makers</div>
+      </div>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <button class="btn" id="helpBtn">Help</button>
+        <button class="btn" id="resetBtn">Reset</button>
+      </div>
+    </div>
 
-  <div class="booth left" style="top:400px" onclick="openShop('Clay Sun Studio','Handmade clay earrings','https://etsy.com')">
-    Clay Sun Studio
+    <div id="crosshair"></div>
+
+    <div id="hint">
+      <b>Desktop:</b> Click “Start” → mouse-look + WASD. Press <b>ESC</b> to release mouse. <br/>
+      <b>Mobile:</b> Left joystick moves • Swipe on right side to look • Tap <b>INTERACT</b> near a booth.
+    </div>
+
+    <!-- Mobile -->
+    <div id="mobileControls">
+      <div id="joystickWrap">
+        <div id="joyBase"><div id="joyStick"></div></div>
+      </div>
+      <button id="interactBtn">INTERACT</button>
+      <div id="lookHint">Swipe/drag on the right side to look around.</div>
+    </div>
+
+    <!-- Start overlay (desktop pointer lock prompt) -->
+    <div id="startOverlay">
+      <div id="startPanel">
+        <h2>Enter the Market (3D)</h2>
+        <p>
+          This experience uses <b>first-person controls</b> (mouse-look + WASD) on desktop via
+          pointer lock. On mobile, you’ll use the on-screen joystick and swipe-to-look.
+        </p>
+        <div class="row">
+          <button class="primary" id="startBtn">Start (Desktop)</button>
+          <button class="btn" id="startMobileBtn">Start (Mobile)</button>
+        </div>
+        <p style="font-size:12px; opacity:0.8;">
+          Tip: Walk up to a booth sign and click / tap <b>INTERACT</b> to open the storefront.
+        </p>
+      </div>
+    </div>
+
+    <!-- Storefront modal -->
+    <div id="modalOverlay">
+      <div id="modal">
+        <div id="modalHeader">
+          <div>
+            <h2 id="mTitle">Business Name</h2>
+            <p id="mDesc">Description</p>
+            <div class="pills" id="mLinks"></div>
+          </div>
+          <button class="btn" id="closeModal">Close</button>
+        </div>
+        <div style="margin-top:12px; font-size:12px; opacity:0.75;">
+          “Buy” opens the business site/checkout in a new tab (fastest way to launch a marketplace spotlight).
+        </div>
+      </div>
+    </div>
   </div>
 
-  <div class="booth right" style="top:800px" onclick="openShop('Crochet Cove','Crochet plushies & bags','https://etsy.com')">
-    Crochet Cove
-  </div>
+<script type="module">
+  import * as THREE from "three";
+  import { PointerLockControls } from "three/addons/controls/PointerLockControls.js";
 
-  <div class="booth left" style="top:1200px" onclick="openShop('Local Artist','Art prints & originals','https://stripe.com')">
-    Local Artist
-  </div>
-</div>
+  // -------------------------
+  // 0) Example booths (REAL Redmond businesses)
+  // Replace or add your own later — just copy one booth object.
+  // -------------------------
+  const BOOTHS = [
+    {
+      id: "vala",
+      name: "VALA Art Center",
+      desc: "Local arts nonprofit in Redmond with exhibits and events.",
+      links: [
+        { label: "Visit Website", url: "https://www.valaeastside.org/" },
+        { label: "City Info", url: "https://www.redmond.gov/2032/VALA" }
+      ],
+      side: "left",
+      z: -14,
+      color: 0xf2d4d7
+    },
+    {
+      id: "eastsidepottery",
+      name: "Eastside Pottery",
+      desc: "Pottery studio with memberships, workshops, and open studio.",
+      links: [
+        { label: "Visit Website", url: "https://www.eastsidepottery.com/" },
+        { label: "Explore Redmond Listing", url: "https://experienceredmond.com/business/eastside-pottery/" }
+      ],
+      side: "right",
+      z: -22,
+      color: 0xd8e8ff
+    },
+    {
+      id: "redmondartworks",
+      name: "Redmond Art Works",
+      desc: "Community art studio near Marymoor Park with classes & open studio.",
+      links: [
+        { label: "Visit Website", url: "https://www.redmondartworks.com/category-s/197.htm" },
+        { label: "Listing", url: "https://ceramic.school/places/redmond-art-works/" }
+      ],
+      side: "left",
+      z: -30,
+      color: 0xe9f7d9
+    },
+    {
+      id: "paintaway",
+      name: "Paint Away!",
+      desc: "Ceramics painting & glass fusing studio in Redmond Town Center.",
+      links: [
+        { label: "Visit Website", url: "https://paintawaynow.com/" },
+        { label: "Call / Hours", url: "https://paintawaynow.com/" }
+      ],
+      side: "right",
+      z: -38,
+      color: 0xfff2cc
+    },
+    {
+      id: "utopia",
+      name: "Utopia (Redmond Town Center)",
+      desc: "Jewelry & gift ideas at Redmond Town Center.",
+      links: [
+        { label: "Directory Listing", url: "https://redmondtowncenter.com/directory/utopia" },
+        { label: "Handcrafted Gifts Info", url: "https://utopianorthwest.com/pages/handcrafted-jewelry-redmond-wa-98052" }
+      ],
+      side: "left",
+      z: -46,
+      color: 0xe6ddff
+    },
+    {
+      id: "brugge",
+      name: "Brugge Chocolates",
+      desc: "European-style artisan truffles handcrafted in Redmond, WA.",
+      links: [
+        { label: "Shop / Build a Box", url: "https://www.bruggechocolates.com/" },
+        { label: "Visit Info", url: "https://www.bruggechocolates.com/" }
+      ],
+      side: "right",
+      z: -54,
+      color: 0xd9f3ff
+    }
+  ];
 
-<div id="popup">
-  <div id="popupContent">
-    <h2 id="shopName"></h2>
-    <p id="shopDesc"></p>
-    <a id="shopLink" target="_blank">
-      <button>Shop Now</button>
-    </a>
-    <br><br>
-    <button onclick="closeShop()">Close</button>
-  </div>
-</div>
+  // -------------------------
+  // 1) Basic Three.js setup
+  // -------------------------
+  const canvas = document.getElementById("c");
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.shadowMap.enabled = true;
 
-<script>
-let scrollPos = 0;
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.Fog(0x87ceeb, 12, 120);
 
-window.addEventListener("wheel", e => {
-  scrollPos += e.deltaY;
-  scrollPos = Math.max(0, scrollPos);
-  document.querySelector(".aisle").style.transform =
-    `translateX(-50%) translateY(${-scrollPos}px)`;
-});
-
-function openShop(name, desc, link) {
-  document.getElementById("shopName").innerText = name;
-  document.getElementById("shopDesc").innerText = desc;
-  document.getElementById("shopLink").href = link;
-  document.getElementById("popup").style.display = "flex";
-}
-
-function closeShop() {
-  document.getElementById("popup").style.display = "none";
-}
-</script>
-
-</body>
-</html>
-``
