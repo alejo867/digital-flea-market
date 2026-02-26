@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Redmond Digital Flea Market</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+<style>
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  background: #87ceeb;
+  overflow: hidden;
+}
+
+#scene {
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(#87ceeb, #bde0fe);
+}
+
+.aisle {
+  position: absolute;
+  width: 300px;
+  height: 5000px;
+  background: #c9b08a;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.booth {
+  position: absolute;
+  width: 160px;
+  height: 120px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+.booth.left { left: calc(50% - 260px); }
+.booth.right { left: calc(50% + 100px); }
+
+#popup {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+#popupContent {
+  background: white;
+  padding: 20px;
+  border-radius: 16px;
+  max-width: 420px;
+  width: 90%;
+}
+
+button {
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: none;
+  background: #111;
+  color: white;
+  cursor: pointer;
+}
+</style>
+</head>
+
+<body>
+
+<div id="scene">
+  <div class="aisle"></div>
+
+  <div class="booth left" style="top:400px" onclick="openShop('Clay Sun Studio','Handmade clay earrings','https://etsy.com')">
+    Clay Sun Studio
+  </div>
+
+  <div class="booth right" style="top:800px" onclick="openShop('Crochet Cove','Crochet plushies & bags','https://etsy.com')">
+    Crochet Cove
+  </div>
+
+  <div class="booth left" style="top:1200px" onclick="openShop('Local Artist','Art prints & originals','https://stripe.com')">
+    Local Artist
+  </div>
+</div>
+
+<div id="popup">
+  <div id="popupContent">
+    <h2 id="shopName"></h2>
+    <p id="shopDesc"></p>
+    <a id="shopLink" target="_blank">
+      <button>Shop Now</button>
+    </a>
+    <br><br>
+    <button onclick="closeShop()">Close</button>
+  </div>
+</div>
+
+<script>
+let scrollPos = 0;
+
+window.addEventListener("wheel", e => {
+  scrollPos += e.deltaY;
+  scrollPos = Math.max(0, scrollPos);
+  document.querySelector(".aisle").style.transform =
+    `translateX(-50%) translateY(${-scrollPos}px)`;
+});
+
+function openShop(name, desc, link) {
+  document.getElementById("shopName").innerText = name;
+  document.getElementById("shopDesc").innerText = desc;
+  document.getElementById("shopLink").href = link;
+  document.getElementById("popup").style.display = "flex";
+}
+
+function closeShop() {
+  document.getElementById("popup").style.display = "none";
+}
+</script>
+
+</body>
+</html>
+``
