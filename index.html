@@ -2,36 +2,87 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>Redmond Digital Flea Market (3D Free Roam)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Redmond Digital Flea Market (3D)</title>
   <style>
     html, body { margin:0; height:100%; overflow:hidden; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; background:#87ceeb; }
     #ui { position:fixed; inset:0; pointer-events:none; }
 
-    #topbar {
+    #topbar{
       pointer-events:auto;
       position:fixed; left:12px; right:12px; top:12px;
       display:flex; gap:10px; align-items:center; justify-content:space-between;
-      z-index: 20;
+      z-index: 50;
     }
-    .card {
+    .card{
       background: rgba(255,255,255,0.88);
       backdrop-filter: blur(8px);
       border-radius: 14px;
       padding: 10px 12px;
       box-shadow: 0 10px 30px rgba(0,0,0,0.18);
     }
-    .title { font-weight: 900; }
-    .sub { font-size:12px; opacity:0.8; margin-top:2px; }
-    .btn {
+    .title{ font-weight:900; }
+    .sub{ font-size:12px; opacity:0.8; margin-top:2px; }
+
+    .btn{
       border:0; border-radius:12px; padding:10px 12px;
       background: rgba(255,255,255,0.88);
       backdrop-filter: blur(8px);
       cursor:pointer;
+      white-space:nowrap;
+    }
+
+    #leftPanel{
+      pointer-events:auto;
+      position:fixed;
+      left:12px;
+      top:76px;
+      width:min(360px, calc(100vw - 24px));
+      background: rgba(255,255,255,0.88);
+      backdrop-filter: blur(8px);
+      border-radius: 14px;
+      padding: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.18);
+      z-index: 40;
+    }
+    #leftPanel h3{ margin:0 0 8px; font-size:14px; }
+    #leftPanel .row{ display:flex; gap:8px; }
+    #search{
+      width:100%;
+      padding:10px 10px;
+      border-radius: 12px;
+      border: 1px solid rgba(0,0,0,0.12);
+      outline: none;
+      font-size: 14px;
+    }
+    .chips{
+      display:flex; flex-wrap:wrap; gap:8px;
+      margin-top:10px;
+    }
+    .chip{
+      display:flex; gap:8px; align-items:center;
+      background: rgba(0,0,0,0.05);
+      padding: 8px 10px;
+      border-radius: 999px;
+      font-size: 13px;
+      cursor: pointer;
+      user-select:none;
+    }
+    .dot{
+      width:10px; height:10px; border-radius:999px; display:inline-block;
+      border: 1px solid rgba(0,0,0,0.15);
+    }
+    #legend{
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(0,0,0,0.10);
+      font-size: 12px;
+      opacity:0.85;
+      line-height: 1.1rem;
     }
 
     /* Crosshair */
-    #crosshair {
+    #crosshair{
       position:fixed; left:50%; top:50%;
       transform: translate(-50%,-50%);
       width: 14px; height: 14px;
@@ -40,7 +91,7 @@
       box-shadow: 0 0 0 2px rgba(0,0,0,0.15);
       pointer-events:none;
       opacity:0.9;
-      z-index: 15;
+      z-index: 30;
     }
     #crosshair::after{
       content:"";
@@ -51,10 +102,9 @@
       border-radius:999px;
     }
 
-    /* Hint */
-    #hint {
+    #hint{
       position:fixed; left:12px; bottom:12px;
-      max-width:min(820px, calc(100vw - 24px));
+      max-width:min(900px, calc(100vw - 24px));
       pointer-events:none;
       color:#fff;
       background: rgba(0,0,0,0.55);
@@ -62,12 +112,11 @@
       padding: 10px 12px;
       line-height: 1.25rem;
       font-size: 14px;
-      z-index: 15;
+      z-index: 30;
     }
-    #hint b { color: #ffe58a; }
+    #hint b{ color:#ffe58a; }
 
-    /* Action prompt (near doors) */
-    #actionPrompt {
+    #actionPrompt{
       position:fixed;
       left:50%; bottom:92px;
       transform:translateX(-50%);
@@ -78,11 +127,11 @@
       font-size: 14px;
       display:none;
       pointer-events:none;
-      z-index: 15;
+      z-index: 30;
     }
 
-    /* Minimap frame overlay (minimap itself is rendered via WebGL viewport) */
-    #minimapFrame {
+    /* Minimap frame */
+    #minimapFrame{
       position:fixed;
       top:70px; right:14px;
       width:220px; height:220px;
@@ -90,7 +139,7 @@
       border: 2px solid rgba(255,255,255,0.85);
       box-shadow: 0 10px 30px rgba(0,0,0,0.25);
       pointer-events:none;
-      z-index: 12;
+      z-index: 20;
     }
     #minimapLabel{
       position:fixed;
@@ -101,38 +150,38 @@
       border-radius: 999px;
       font-size: 12px;
       pointer-events:none;
-      z-index: 12;
+      z-index: 20;
     }
 
-    /* Start overlay */
-    #startOverlay {
+    /* One-tap overlay (not a mode selection) */
+    #takeControl{
       position:fixed; inset:0;
       display:flex; align-items:center; justify-content:center;
-      background: rgba(0,0,0,0.55);
-      z-index: 50;
+      background: rgba(0,0,0,0.40);
+      z-index: 60;
       pointer-events:auto;
     }
-    #startPanel{
-      width:min(620px, calc(100vw - 24px));
+    #takeControl .panel{
+      width:min(560px, calc(100vw - 24px));
       background: rgba(255,255,255,0.92);
       border-radius: 18px;
       padding: 16px;
       box-shadow: 0 20px 60px rgba(0,0,0,0.35);
     }
-    #startPanel h2 { margin:0 0 8px; }
-    #startPanel p { margin: 8px 0; opacity:0.85; }
-    #startPanel .row { display:flex; gap:10px; flex-wrap:wrap; }
-    #startPanel .primary {
+    #takeControl h2{ margin:0 0 8px; }
+    #takeControl p{ margin:8px 0; opacity:0.85; }
+    #takeControl .primary{
       background:#111; color:#fff;
       padding: 10px 12px; border-radius: 12px; border:0;
       cursor:pointer;
+      font-weight: 800;
     }
 
     /* Booth info modal */
     #modalOverlay{
-      position:fixed; inset:0; background: rgba(0,0,0,0.6);
+      position:fixed; inset:0; background: rgba(0,0,0,0.60);
       display:none; align-items:center; justify-content:center;
-      z-index: 60;
+      z-index: 70;
       pointer-events:auto;
       padding: 14px;
     }
@@ -148,202 +197,38 @@
     #modalHeader{ display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
     #modalHeader h2{ margin:0; }
     #modalHeader p{ margin:8px 0 0; opacity:0.8; }
-    .pills { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
-    .pill {
+    .pills{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+    .pill{
       display:inline-block; padding:8px 10px; border-radius:999px;
       background: rgba(0,0,0,0.06);
       text-decoration:none; color:#111; font-size:14px;
+    }
+    .prodGrid{
+      display:grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap:10px;
+      margin-top: 14px;
+    }
+    .prodCard{
+      border: 1px solid rgba(0,0,0,0.10);
+      border-radius: 14px;
+      padding: 10px;
+      background: rgba(255,255,255,0.9);
+      display:flex; flex-direction:column; gap:8px;
+    }
+    .prodCard .name{ font-weight:800; }
+    .prodCard .price{ opacity:0.75; font-size:13px; }
+    .prodCard a{
+      display:inline-block;
+      text-decoration:none;
+      background:#111; color:#fff;
+      padding:10px 12px;
+      border-radius: 12px;
+      text-align:center;
+      font-weight:800;
     }
 
     /* Product modal */
     #productOverlay{
       position:fixed; inset:0; background: rgba(0,0,0,0.65);
       display:none; align-items:center; justify-content:center;
-      z-index: 65;
-      pointer-events:auto;
-      padding: 14px;
-    }
-    #productModal{
-      width:min(720px, calc(100vw - 24px));
-      background: rgba(255,255,255,0.96);
-      border-radius: 18px;
-      padding: 16px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.35);
-    }
-    #productModal h3{ margin:0; }
-    #productModal .meta{ margin-top:6px; opacity:0.75; }
-    #productModal .actions{ margin-top:12px; display:flex; gap:10px; flex-wrap:wrap; }
-    .primaryBtn{
-      border:0; border-radius:12px; padding:10px 12px;
-      background:#111; color:#fff; cursor:pointer;
-      text-decoration:none; display:inline-block;
-    }
-
-    /* Mobile controls */
-    #mobileControls{
-      position:fixed; inset:0;
-      display:none;
-      z-index: 40;
-      pointer-events:none;
-    }
-    #joystickWrap{
-      position:fixed; left:16px; bottom:18px;
-      width:140px; height:140px;
-      pointer-events:auto;
-      touch-action:none;
-      display:flex; align-items:center; justify-content:center;
-      opacity:0.95;
-    }
-    #joyBase{
-      width:120px; height:120px; border-radius:999px;
-      background: rgba(255,255,255,0.22);
-      border: 2px solid rgba(255,255,255,0.45);
-      box-shadow: 0 10px 30px rgba(0,0,0,0.20);
-      position:relative;
-    }
-    #joyStick{
-      width:54px; height:54px; border-radius:999px;
-      background: rgba(255,255,255,0.72);
-      border: 2px solid rgba(0,0,0,0.12);
-      position:absolute; left:50%; top:50%;
-      transform: translate(-50%,-50%);
-    }
-
-    /* Mobile buttons */
-    #interactBtn{
-      position:fixed; right:16px; bottom:30px;
-      pointer-events:auto;
-      background: rgba(255,255,255,0.88);
-      border:0; border-radius: 16px;
-      padding: 14px 14px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.20);
-      font-weight: 800;
-      touch-action: manipulation;
-    }
-    #enterBtn{
-      position:fixed; right:16px; bottom:92px;
-      pointer-events:auto;
-      background: rgba(255,255,255,0.88);
-      border:0; border-radius: 16px;
-      padding: 12px 14px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.20);
-      font-weight: 900;
-      touch-action: manipulation;
-      display:none;
-    }
-    #exitBtn{
-      position:fixed; right:16px; bottom:150px;
-      pointer-events:auto;
-      background: rgba(0,0,0,0.65);
-      color:#fff;
-      border:0; border-radius: 16px;
-      padding: 12px 14px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.20);
-      font-weight: 900;
-      touch-action: manipulation;
-      display:none;
-    }
-
-    #lookHint{
-      position:fixed; right:16px; bottom:206px;
-      pointer-events:none;
-      color:#fff;
-      background: rgba(0,0,0,0.45);
-      border-radius: 12px;
-      padding: 8px 10px;
-      font-size: 12px;
-      max-width: 210px;
-      line-height: 1.1rem;
-    }
-  </style>
-
-  <!-- Three.js as ES modules -->
-  <script type="importmap">
-    {
-      "imports": {
-        "three": "https://unpkg.com/three@0.165.0/build/three.module.js",
-        "three/addons/": "https://unpkg.com/three@0.165.0/examples/jsm/"
-      }
-    }
-  </script>
-</head>
-
-<body>
-  <canvas id="c"></canvas>
-
-  <div id="ui">
-    <div id="topbar">
-      <div class="card">
-        <div class="title">Redmond Digital Flea Market</div>
-        <div class="sub">FREE ROAM • Mini‑map w/ booth labels • Enter booths • Click products inside</div>
-      </div>
-      <div style="display:flex; gap:10px; align-items:center;">
-        <button class="btn" id="helpBtn">Help</button>
-        <button class="btn" id="soundBtn">Sound: Off</button>
-        <button class="btn" id="resetBtn">Reset</button>
-      </div>
-    </div>
-
-    <div id="minimapLabel">Mini‑map</div>
-    <div id="minimapFrame"></div>
-
-    <div id="crosshair"></div>
-    <div id="actionPrompt"></div>
-
-    <div id="hint">
-      <b>Desktop:</b> Start → mouse-look + WASD. <b>E</b> enter booth • <b>Q</b> exit booth • Click sign/products to open links.
-      <br/>
-      <b>Mobile:</b> Joystick move • Swipe right side to look • Tap <b>INTERACT</b> • Tap <b>ENTER</b> near doorway • Tap <b>EXIT</b> inside.
-      <br/>
-      <b>Mini‑map:</b> You = red arrow. Booth icons + names show nearby.
-    </div>
-
-    <!-- Mobile -->
-    <div id="mobileControls">
-      <div id="joystickWrap">
-        <div id="joyBase"><div id="joyStick"></div></div>
-      </div>
-      <button id="interactBtn">INTERACT</button>
-      <button id="enterBtn">ENTER</button>
-      <button id="exitBtn">EXIT</button>
-      <div id="lookHint">Swipe/drag on the right side to look around.</div>
-    </div>
-
-    <!-- Start overlay -->
-    <div id="startOverlay">
-      <div id="startPanel">
-        <h2>Enter the Market (3D)</h2>
-        <p>
-          Desktop uses first‑person mouse look. Mobile uses joystick + swipe-to-look.
-          Inside booths, click the <b>products</b> to open “Buy/Visit” links.
-        </p>
-        <div class="row">
-          <button class="primary" id="startBtn">Start (Desktop)</button>
-          <button class="btn" id="startMobileBtn">Start (Mobile)</button>
-        </div>
-        <p style="font-size:12px; opacity:0.8;">
-          Tip: Walk close to a tent doorway and press <b>E</b> (or tap <b>ENTER</b>) to go inside.
-        </p>
-      </div>
-    </div>
-
-    <!-- Booth info modal -->
-    <div id="modalOverlay">
-      <div id="modal">
-        <div id="modalHeader">
-          <div>
-            <h2 id="mTitle">Business Name</h2>
-            <p id="mDesc">Description</p>
-            <div class="pills" id="mLinks"></div>
-          </div>
-          <button class="btn" id="closeModal">Close</button>
-        </div>
-        <div style="margin-top:12px; font-size:12px; opacity:0.75;">
-          Links open in a new tab.
-        </div>
-      </div>
-    </div>
-
-    <!-- Product modal -->
-    <div id="productOverlay">
-      <div id="productModal">
